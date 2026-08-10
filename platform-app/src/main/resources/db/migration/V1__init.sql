@@ -1,0 +1,1 @@
+-- Empty baseline. Establishes flyway_schema_history before any module lands real migrations.

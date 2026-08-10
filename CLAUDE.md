@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-This repository is **pre-implementation**: it currently contains only planning documents, no source code. There is no `pom.xml`, no Maven reactor, and no application modules yet — do not assume any of the structure described below already exists on disk without checking first.
+Milestone 1, Epic 1.1 (project skeleton & infra bootstrap) is done: the Maven reactor exists with `platform-app` and `platform-common`, Docker Compose brings up Postgres/RabbitMQ/MinIO, and Flyway applies an empty baseline. `platform-app` is not yet more than a bare Spring Boot skeleton — no controllers, entities, or business logic. Everything past Epic 1.1 (security/roles, outbox, audit, applicant/application, the rest of the modules) is not yet built; check the roadmap's Milestone 1 table before assuming a module or table exists.
 
 ## Source of truth documents
 
@@ -31,4 +31,8 @@ Work proceeds through the roadmap's 6 milestones in strict dependency order (Fou
 
 ## Commands
 
-No build, lint, or test commands exist yet — Milestone 1, Epic 1.1 ("Project skeleton & infra bootstrap" in the roadmap) is what creates the Maven reactor and Docker Compose setup. Once that scaffolding exists, this section must be updated with the real `mvn`/Docker Compose commands (build, run a single test, start local infra, etc.) rather than left as a placeholder.
+- Build the reactor: `./mvnw -DskipTests package` (drop `-DskipTests` once tests exist).
+- Run a single test class: `./mvnw -pl platform-app test -Dtest=SomeClassNameTest`.
+- Start local infra (Postgres, RabbitMQ, MinIO + bucket init): `cp .env.example .env` (first time only, then edit real values), `docker compose up -d`. RabbitMQ management UI is at `localhost:15672`; MinIO console at `localhost:9001`.
+- Run the app against dockerized infra (IDE or CLI): `java -jar platform-app/target/platform-app.jar --spring.profiles.active=local`, with the same `.env` variables exported into the shell (`set -a; source .env; set +a`). Confirms up via `curl localhost:8080/actuator/health`.
+- The `spring-boot-maven-plugin`'s `repackage` goal is **not** auto-bound to `package` here (only happens automatically when a project inherits from `spring-boot-starter-parent`, which this reactor deliberately does not) — `platform-app/pom.xml` binds it explicitly via `<executions>`. If a future module needs its own executable jar, it needs the same explicit binding or `mvn package` will silently produce a jar with no `Main-Class`.

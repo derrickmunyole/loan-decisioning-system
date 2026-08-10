@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${DB_NAME:loan_decisioning}
+    username: ${DB_USER:loan_app}
+    password: ${DB_PASSWORD:loan_app}
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USER:loan_app}
+    password: ${RABBITMQ_PASSWORD:loan_app}
