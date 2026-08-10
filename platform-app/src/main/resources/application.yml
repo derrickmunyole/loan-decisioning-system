@@ -7,7 +7,18 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
-    locations: classpath:db/migration,classpath:db/migration/security
+    locations: classpath:db/migration,classpath:db/migration/security,classpath:db/migration/infrastructure
+  rabbitmq:
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
+          multiplier: 2
+          max-interval: 10000
+        default-requeue-rejected: false
 
 management:
   endpoints:
@@ -27,3 +38,5 @@ app:
       secret: ${JWT_SECRET}
       expiration: PT1H
     seed-users-password: ${SEED_USERS_PASSWORD:ChangeMe123!}
+  outbox:
+    relay-interval: 2000

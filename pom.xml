@@ -15,6 +15,7 @@
   <modules>
     <module>platform-common</module>
     <module>platform-security</module>
+    <module>platform-infrastructure</module>
     <module>platform-app</module>
   </modules>
 
@@ -45,6 +46,11 @@
       <dependency>
         <groupId>io.github.derrickmunyole</groupId>
         <artifactId>platform-security</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.derrickmunyole</groupId>
+        <artifactId>platform-infrastructure</artifactId>
         <version>${project.version}</version>
       </dependency>
 
