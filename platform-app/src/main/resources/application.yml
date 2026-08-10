@@ -7,6 +7,7 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+    locations: classpath:db/migration,classpath:db/migration/security
 
 management:
   endpoints:
@@ -19,3 +20,10 @@ management:
 
 server:
   port: 8080
+
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration: PT1H
+    seed-users-password: ${SEED_USERS_PASSWORD:ChangeMe123!}
