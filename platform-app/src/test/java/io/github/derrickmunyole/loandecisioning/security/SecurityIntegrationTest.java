@@ -14,13 +14,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -99,6 +104,24 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void anotherApplicantIsForbiddenFromGetTimelineSubmitAndDocuments() {
+        String ownerToken = login("applicant", SEED_PASSWORD);
+        UUID applicationId = createApplication(ownerToken);
+
+        ensureApplicantUser("applicant2");
+        String otherToken = login("applicant2", SEED_PASSWORD);
+
+        assertThat(get(applicationId, otherToken).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(timeline(applicationId, otherToken).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(uploadDocument(applicationId, otherToken).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(submit(applicationId, otherToken).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        // sanity: the guard isn't blocking the legitimate owner too
+        assertThat(get(applicationId, ownerToken).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(timeline(applicationId, ownerToken).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void loginWithWrongPasswordIsUnauthorized() {
         var response =
                 restTemplate.postForEntity(
@@ -153,6 +176,52 @@ class SecurityIntegrationTest {
                         "declaredMonthlyIncomeKes", 50000,
                         "declaredEmploymentStatus", "EMPLOYED");
         return new HttpEntity<>(body, authHeaders(token));
+    }
+
+    private ResponseEntity<String> get(UUID applicationId, String token) {
+        return restTemplate.exchange(
+                "/applications/" + applicationId,
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)),
+                String.class);
+    }
+
+    private ResponseEntity<String> timeline(UUID applicationId, String token) {
+        return restTemplate.exchange(
+                "/applications/" + applicationId + "/timeline",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(token)),
+                String.class);
+    }
+
+    private ResponseEntity<String> submit(UUID applicationId, String token) {
+        var headers = authHeaders(token);
+        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        return restTemplate.exchange(
+                "/applications/" + applicationId + "/submit",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of("consentAccepted", true), headers),
+                String.class);
+    }
+
+    private ResponseEntity<String> uploadDocument(UUID applicationId, String token) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("documentType", "ID_DOCUMENT");
+        body.add(
+                "file",
+                new ByteArrayResource("synthetic id document".getBytes()) {
+                    @Override
+                    public String getFilename() {
+                        return "id.txt";
+                    }
+                });
+        var headers = authHeaders(token);
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        return restTemplate.exchange(
+                "/applications/" + applicationId + "/documents",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                String.class);
     }
 
     private String login(String username, String password) {
