@@ -29,6 +29,8 @@ Do not re-derive or re-decide anything already settled in these two files (e.g. 
 
 Work proceeds through the roadmap's 6 milestones in strict dependency order (Foundation → Workflow & Verification → Decisioning → Operations & Underwriter Actions → Lending Completion → Hardening). Within a milestone, its epics are the actual unit of work — each epic in the roadmap has an explicit done-criterion (a runnable/demoable/testable increment, not just code written); treat that criterion as the acceptance bar before considering an epic finished, even though this is an AI-assisted build where output is fast to produce.
 
+One feature branch and one PR per epic; commit each logical piece of the epic separately within that branch rather than one lump commit, so the PR is reviewable commit-by-commit (see git history for the shape this takes in practice). **PRs in this repo are squash-merged, not merge-commit** — this predates and intentionally overrides Claude Code's global default (regular merge commit) established after Epic 1.4, kept for consistency with Epics 1.1–1.4's already-squashed history rather than introducing a visible seam partway through the project. The granular per-epic commits still exist forever on each PR's GitHub page for review purposes even after squashing; they just don't persist as separate objects in `master`'s own history.
+
 ## Commands
 
 - Build the reactor: `./mvnw -DskipTests package` (drop `-DskipTests` once tests exist).
