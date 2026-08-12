@@ -1,4 +1,4 @@
-package io.github.derrickmunyole.loandecisioning.infrastructure.idempotency;
+package io.github.derrickmunyole.loandecisioning.infrastructure.api;
 
 import io.github.derrickmunyole.loandecisioning.common.Sha256;
 import java.io.ByteArrayOutputStream;

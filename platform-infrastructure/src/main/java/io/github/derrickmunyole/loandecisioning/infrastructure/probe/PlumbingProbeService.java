@@ -2,7 +2,7 @@ package io.github.derrickmunyole.loandecisioning.infrastructure.probe;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.NotificationRequestedEvent;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.Audited;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

@@ -1,4 +1,4 @@
-package io.github.derrickmunyole.loandecisioning.infrastructure.idempotency;
+package io.github.derrickmunyole.loandecisioning.infrastructure.api;
 
 /** The same Idempotency-Key was reused with a different request body. */
 public class IdempotencyKeyConflictException extends RuntimeException {

@@ -1,4 +1,4 @@
-package io.github.derrickmunyole.loandecisioning.infrastructure.idempotency;
+package io.github.derrickmunyole.loandecisioning.infrastructure.api;
 
 /** The original request for this key is still being processed; ask the caller to retry later. */
 public class IdempotencyKeyInProgressException extends RuntimeException {

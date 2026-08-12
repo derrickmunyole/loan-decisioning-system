@@ -1,9 +1,9 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.AuditQueryService;
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.Audited;
-import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyService;
-import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.RequestHash;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyService;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.RequestHash;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
