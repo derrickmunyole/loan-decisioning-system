@@ -1,6 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEventRepository;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.AuditQueryService;
 import io.github.derrickmunyole.loandecisioning.infrastructure.audit.Audited;
 import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyService;
 import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.RequestHash;
@@ -21,17 +21,17 @@ public class ApplicationService {
     private final ApplicationRepository applicationRepository;
     private final ApplicationCommandService applicationCommandService;
     private final IdempotencyService idempotencyService;
-    private final AuditEventRepository auditEventRepository;
+    private final AuditQueryService auditQueryService;
 
     public ApplicationService(
             ApplicationRepository applicationRepository,
             ApplicationCommandService applicationCommandService,
             IdempotencyService idempotencyService,
-            AuditEventRepository auditEventRepository) {
+            AuditQueryService auditQueryService) {
         this.applicationRepository = applicationRepository;
         this.applicationCommandService = applicationCommandService;
         this.idempotencyService = idempotencyService;
-        this.auditEventRepository = auditEventRepository;
+        this.auditQueryService = auditQueryService;
     }
 
     public ApplicationResponse createDraft(
@@ -98,10 +98,7 @@ public class ApplicationService {
         if (!applicationRepository.existsById(applicationId)) {
             throw new ApplicationNotFoundException(applicationId);
         }
-        return auditEventRepository
-                .findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
-                        AUDIT_TARGET_TYPE, applicationId.toString())
-                .stream()
+        return auditQueryService.findByTarget(AUDIT_TARGET_TYPE, applicationId.toString()).stream()
                 .map(TimelineEntry::from)
                 .toList();
     }
