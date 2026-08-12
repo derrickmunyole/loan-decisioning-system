@@ -1,7 +1,7 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
-import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyKeyConflictException;
-import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyKeyInProgressException;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyKeyConflictException;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyKeyInProgressException;
 import io.github.derrickmunyole.loandecisioning.origination.document.DocumentStorageException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;

@@ -1,5 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.infrastructure.audit;
 
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import io.github.derrickmunyole.loandecisioning.infrastructure.correlation.CorrelationIdFilter;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;

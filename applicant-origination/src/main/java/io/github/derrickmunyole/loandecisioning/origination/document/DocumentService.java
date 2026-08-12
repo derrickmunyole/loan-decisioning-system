@@ -1,7 +1,7 @@
 package io.github.derrickmunyole.loandecisioning.origination.document;
 
 import io.github.derrickmunyole.loandecisioning.common.Sha256;
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.Audited;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import io.github.derrickmunyole.loandecisioning.origination.application.Application;
 import io.github.derrickmunyole.loandecisioning.origination.application.ApplicationNotEditableException;
 import io.github.derrickmunyole.loandecisioning.origination.application.ApplicationNotFoundException;

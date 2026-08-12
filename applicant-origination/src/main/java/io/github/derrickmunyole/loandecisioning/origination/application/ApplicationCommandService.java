@@ -1,7 +1,7 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.Audited;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationSubmittedEvent;
 import io.github.derrickmunyole.loandecisioning.origination.applicant.Applicant;
 import io.github.derrickmunyole.loandecisioning.origination.applicant.ApplicantRepository;
@@ -19,7 +19,7 @@ import java.util.UUID;
  * Holds the mutation methods that must always be invoked through the Spring-managed proxy (never
  * self-invoked) so {@code @Audited}'s AOP advice actually fires — split out from {@link
  * ApplicationService} because that class calls into {@link
- * io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyService}, and a
+ * io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyService}, and a
  * self-invoked call from within the same bean would bypass the proxy entirely.
  */
 @Service

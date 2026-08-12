@@ -1,4 +1,4 @@
-package io.github.derrickmunyole.loandecisioning.infrastructure.audit;
+package io.github.derrickmunyole.loandecisioning.infrastructure.api;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
