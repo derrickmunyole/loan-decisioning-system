@@ -46,9 +46,7 @@ def fake_draft_fields() -> DraftFields:
         requested_term_months=random.choice(ALLOWED_TERM_MONTHS),
         declared_monthly_income_kes=str(random.randint(0, 500_000)),
         declared_employment_status=employment_status,
-        declared_employer_name=(
-            "" if employment_status == "UNEMPLOYED" else _faker.company()
-        ),
+        declared_employer_name=("" if employment_status == "UNEMPLOYED" else _faker.company()),
         loan_purpose=_faker.sentence(nb_words=6)[:500],
     )
 

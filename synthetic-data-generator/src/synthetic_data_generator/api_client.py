@@ -88,9 +88,7 @@ class ApiClient:
             files={"file": (filename, content, "application/octet-stream")},
             timeout=self._timeout,
         )
-        self._raise_for_status(
-            "POST", f"/applications/{application_id}/documents", response
-        )
+        self._raise_for_status("POST", f"/applications/{application_id}/documents", response)
         return response.json()
 
     def submit_application(self, application_id: str) -> dict[str, Any]:

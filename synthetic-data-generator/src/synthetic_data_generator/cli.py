@@ -31,9 +31,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="api",
         help="Seeding mode (only 'api' is supported for now).",
     )
-    parser.add_argument(
-        "--count", type=int, default=10, help="Number of applications to submit."
-    )
+    parser.add_argument("--count", type=int, default=10, help="Number of applications to submit.")
     parser.add_argument(
         "--base-url", default="http://localhost:8080", help="Origination API base URL."
     )
