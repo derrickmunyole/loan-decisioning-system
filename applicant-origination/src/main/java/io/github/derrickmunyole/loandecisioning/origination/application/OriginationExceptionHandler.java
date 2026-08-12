@@ -2,6 +2,7 @@ package io.github.derrickmunyole.loandecisioning.origination.application;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyKeyConflictException;
 import io.github.derrickmunyole.loandecisioning.infrastructure.idempotency.IdempotencyKeyInProgressException;
+import io.github.derrickmunyole.loandecisioning.origination.document.DocumentStorageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -25,6 +26,12 @@ class OriginationExceptionHandler {
     @ExceptionHandler(InvalidApplicationDataException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     String handleInvalidData(InvalidApplicationDataException e) {
+        return e.getMessage();
+    }
+
+    @ExceptionHandler(DocumentStorageException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    String handleStorageFailure(DocumentStorageException e) {
         return e.getMessage();
     }
 }
