@@ -10,9 +10,10 @@ import io.github.derrickmunyole.loandecisioning.origination.consent.ConsentRepos
 import io.github.derrickmunyole.loandecisioning.origination.consent.ConsentType;
 import io.github.derrickmunyole.loandecisioning.origination.document.Document;
 import io.github.derrickmunyole.loandecisioning.origination.document.DocumentRepository;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 /**
  * Holds the mutation methods that must always be invoked through the Spring-managed proxy (never
