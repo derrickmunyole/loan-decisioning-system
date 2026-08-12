@@ -16,6 +16,7 @@
     <module>platform-common</module>
     <module>platform-security</module>
     <module>platform-infrastructure</module>
+    <module>applicant-origination</module>
     <module>platform-app</module>
   </modules>
 
@@ -26,6 +27,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <spring-boot.version>3.5.16</spring-boot.version>
     <jjwt.version>0.12.7</jjwt.version>
+    <minio.version>8.5.4</minio.version>
   </properties>
 
   <dependencyManagement>
@@ -52,6 +54,17 @@
         <groupId>io.github.derrickmunyole</groupId>
         <artifactId>platform-infrastructure</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.derrickmunyole</groupId>
+        <artifactId>applicant-origination</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.minio</groupId>
+        <artifactId>minio</artifactId>
+        <version>${minio.version}</version>
       </dependency>
 
       <dependency>
