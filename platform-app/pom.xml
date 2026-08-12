@@ -29,6 +29,10 @@
       <groupId>io.github.derrickmunyole</groupId>
       <artifactId>platform-infrastructure</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.github.derrickmunyole</groupId>
+      <artifactId>applicant-origination</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -89,6 +93,11 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>rabbitmq</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>minio</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
