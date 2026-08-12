@@ -47,18 +47,25 @@ public class DocumentService {
         String storageKey = "applications/%s/%s".formatted(applicationId, documentId);
         documentStorageService.put(storageKey, content, file.getContentType());
 
-        Document document =
-                documentRepository.save(
-                        new Document(
-                                documentId,
-                                applicationId,
-                                documentType,
-                                storageKey,
-                                file.getOriginalFilename(),
-                                file.getContentType(),
-                                content.length,
-                                checksum));
-        return DocumentResponse.from(document);
+        try {
+            Document document =
+                    documentRepository.save(
+                            new Document(
+                                    documentId,
+                                    applicationId,
+                                    documentType,
+                                    storageKey,
+                                    file.getOriginalFilename(),
+                                    file.getContentType(),
+                                    content.length,
+                                    checksum));
+            return DocumentResponse.from(document);
+        } catch (RuntimeException e) {
+            // The MinIO write above already succeeded; without this, a DB failure here would
+            // leave the object orphaned with no Document row ever referencing it.
+            documentStorageService.delete(storageKey);
+            throw e;
+        }
     }
 
     private byte[] readBytes(MultipartFile file) {
