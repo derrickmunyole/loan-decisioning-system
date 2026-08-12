@@ -67,7 +67,11 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     client = ApiClient(args.base_url)
-    client.login(args.username, password)
+    try:
+        client.login(args.username, password)
+    except ApiError as e:
+        logger.error("Login as %s failed: %s", args.username, e)
+        return 1
 
     succeeded = 0
     for i in range(args.count):
