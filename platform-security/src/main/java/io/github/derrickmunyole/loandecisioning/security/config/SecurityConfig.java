@@ -46,6 +46,14 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/actuator/health/**")
                                         .permitAll()
+                                        // response.sendError() forwards internally to /error, and
+                                        // JwtAuthenticationFilter (a OncePerRequestFilter) skips
+                                        // ERROR dispatches by default, so without this the real
+                                        // status (e.g. 400 from a failed @Valid) gets masked by a
+                                        // 403 from the security chain denying the unauthenticated
+                                        // forward.
+                                        .requestMatchers("/error")
+                                        .permitAll()
                                         .requestMatchers("/applications/**")
                                         .hasRole("APPLICANT")
                                         .anyRequest()
