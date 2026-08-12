@@ -46,8 +46,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/actuator/health/**")
                                         .permitAll()
-                                        .requestMatchers("/internal/security-probe/underwriter-only")
-                                        .hasRole("UNDERWRITER")
+                                        .requestMatchers("/applications/**")
+                                        .hasRole("APPLICANT")
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(

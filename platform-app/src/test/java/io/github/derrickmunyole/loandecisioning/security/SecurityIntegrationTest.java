@@ -2,8 +2,13 @@ package io.github.derrickmunyole.loandecisioning.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.derrickmunyole.loandecisioning.security.Role;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginRequest;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginResponse;
+import io.github.derrickmunyole.loandecisioning.security.user.AppUser;
+import io.github.derrickmunyole.loandecisioning.security.user.AppUserRepository;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +18,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -20,6 +26,11 @@ import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+/**
+ * Exercises the endpoint-level role gate and method-level {@code @PreAuthorize} ownership check
+ * against the real {@code /applications} endpoints (Milestone 1, Epic 1.4) — these used to run
+ * against a wiring-only probe controller, removed once real role-gated endpoints existed.
+ */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class SecurityIntegrationTest {
@@ -41,50 +52,46 @@ class SecurityIntegrationTest {
     }
 
     @Autowired private TestRestTemplate restTemplate;
+    @Autowired private AppUserRepository appUserRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
 
     @Test
-    void underwriterCanLoginAndAccessRoleGatedEndpoint() {
-        String token = login("underwriter", SEED_PASSWORD);
+    void applicantCanCreateApplication() {
+        String token = login("applicant", SEED_PASSWORD);
 
-        var response =
-                restTemplate.exchange(
-                        "/internal/security-probe/underwriter-only",
-                        HttpMethod.GET,
-                        authorizedRequest(token),
-                        String.class);
+        var response = restTemplate.exchange("/applications", HttpMethod.POST, createRequest(token), String.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
     @Test
-    void applicantIsForbiddenFromUnderwriterOnlyEndpoint() {
-        String token = login("applicant", SEED_PASSWORD);
+    void underwriterIsForbiddenFromApplicantEndpoint() {
+        String token = login("underwriter", SEED_PASSWORD);
 
-        var response =
-                restTemplate.exchange(
-                        "/internal/security-probe/underwriter-only",
-                        HttpMethod.GET,
-                        authorizedRequest(token),
-                        String.class);
+        var response = restTemplate.exchange("/applications", HttpMethod.POST, createRequest(token), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
-    void selfOwnershipCheckAllowsMatchingUsernameAndRejectsOthers() {
-        String token = login("applicant", SEED_PASSWORD);
+    void ownerCanUpdateOwnDraftButAnotherApplicantCannot() {
+        String ownerToken = login("applicant", SEED_PASSWORD);
+        UUID applicationId = createApplication(ownerToken);
+
+        ensureApplicantUser("applicant2");
+        String otherToken = login("applicant2", SEED_PASSWORD);
 
         var ownResponse =
                 restTemplate.exchange(
-                        "/internal/security-probe/self/applicant",
-                        HttpMethod.GET,
-                        authorizedRequest(token),
+                        "/applications/" + applicationId,
+                        HttpMethod.PATCH,
+                        patchRequest(ownerToken),
                         String.class);
         var otherResponse =
                 restTemplate.exchange(
-                        "/internal/security-probe/self/underwriter",
-                        HttpMethod.GET,
-                        authorizedRequest(token),
+                        "/applications/" + applicationId,
+                        HttpMethod.PATCH,
+                        patchRequest(otherToken),
                         String.class);
 
         assertThat(ownResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -105,11 +112,47 @@ class SecurityIntegrationTest {
     @Test
     void unauthenticatedRequestToProtectedEndpointIsRejected() {
         var response =
-                restTemplate.getForEntity(
-                        "/internal/security-probe/self/applicant", String.class);
+                restTemplate.postForEntity(
+                        "/applications", createBody(), String.class);
 
         assertThat(response.getStatusCode())
                 .isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+    }
+
+    private UUID createApplication(String token) {
+        var response = restTemplate.exchange("/applications", HttpMethod.POST, createRequest(token), Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return UUID.fromString((String) response.getBody().get("id"));
+    }
+
+    private void ensureApplicantUser(String username) {
+        if (appUserRepository.findByUsername(username).isEmpty()) {
+            appUserRepository.save(
+                    new AppUser(username, passwordEncoder.encode(SEED_PASSWORD), Role.APPLICANT));
+        }
+    }
+
+    private Map<String, String> createBody() {
+        return Map.of(
+                "fullName", "Test Applicant",
+                "email", "applicant@example.com",
+                "phone", "+254700000000");
+    }
+
+    private HttpEntity<Map<String, String>> createRequest(String token) {
+        var headers = authHeaders(token);
+        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        return new HttpEntity<>(createBody(), headers);
+    }
+
+    private HttpEntity<Map<String, Object>> patchRequest(String token) {
+        var body =
+                Map.<String, Object>of(
+                        "requestedAmountKes", 100000,
+                        "requestedTermMonths", 12,
+                        "declaredMonthlyIncomeKes", 50000,
+                        "declaredEmploymentStatus", "EMPLOYED");
+        return new HttpEntity<>(body, authHeaders(token));
     }
 
     private String login(String username, String password) {
@@ -120,9 +163,9 @@ class SecurityIntegrationTest {
         return response.getBody().token();
     }
 
-    private HttpEntity<Void> authorizedRequest(String token) {
+    private HttpHeaders authHeaders(String token) {
         var headers = new HttpHeaders();
         headers.setBearerAuth(token);
-        return new HttpEntity<>(headers);
+        return headers;
     }
 }
