@@ -1,6 +1,6 @@
 CREATE TABLE idempotency_key (
     id UUID PRIMARY KEY,
-    scope VARCHAR(100) NOT NULL,
+    scope VARCHAR(200) NOT NULL,
     idempotency_key VARCHAR(200) NOT NULL,
     request_hash VARCHAR(64) NOT NULL,
     status VARCHAR(20) NOT NULL,

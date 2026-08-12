@@ -40,7 +40,7 @@ public class ApplicationService {
         String requestHash =
                 RequestHash.of(username, request.fullName(), request.email(), request.phone());
         return idempotencyService.execute(
-                CREATE_SCOPE,
+                CREATE_SCOPE + ":" + username,
                 idempotencyKey,
                 requestHash,
                 ApplicationResponse.class,
@@ -73,7 +73,7 @@ public class ApplicationService {
         String requestHash =
                 RequestHash.of(applicationId.toString(), String.valueOf(request.consentAccepted()));
         return idempotencyService.execute(
-                SUBMIT_SCOPE,
+                SUBMIT_SCOPE + ":" + applicationId,
                 idempotencyKey,
                 requestHash,
                 ApplicationResponse.class,
