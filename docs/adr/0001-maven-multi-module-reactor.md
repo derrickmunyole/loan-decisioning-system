@@ -15,3 +15,5 @@ Start with the modules each epic actually needs, not the full target set: `platf
 ## Consequences
 
 Reactor stays easy to navigate and rebuild while there's little in it. The tradeoff is that module boundaries are currently honor-system only — nothing stops a future epic from reaching across modules the wrong way until ArchUnit tests exist. Follow-up: add an ArchUnit test module/suite before Milestone 2 introduces `workflow` and the module count starts climbing.
+
+**Status update (Epic 1.6 ADR audit):** the reactor is now at 5 modules (`platform-common`, `platform-security`, `platform-infrastructure`, `applicant-origination`, `platform-app`) — past the "2-3 modules" threshold this ADR named, with ArchUnit still unaddressed. The commitment above ("before Milestone 2 introduces `workflow`") hasn't technically been missed yet since Milestone 2 hasn't started, but there's no slack left in it: this needs to land at the very start of Milestone 2, before `workflow` adds a sixth module and the boundary this ADR is meant to protect gets a second undefended crossing point.
