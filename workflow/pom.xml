@@ -14,12 +14,35 @@
   <packaging>jar</packaging>
 
   <name>workflow</name>
-  <description>Hand-rolled state machine core: per-aggregate status enums and transition-table validation.</description>
+  <description>Hand-rolled state machine core, workflow_task, and the work queue.</description>
 
   <dependencies>
     <dependency>
+      <groupId>io.github.derrickmunyole</groupId>
+      <artifactId>platform-infrastructure</artifactId>
+    </dependency>
+
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-amqp</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>
