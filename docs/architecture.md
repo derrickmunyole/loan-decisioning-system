@@ -105,7 +105,7 @@ Not yet present: `decisioning`, `offers`, `funding`, `notifications` — Milesto
 
 ## Submit → verify → underwriting (async golden path)
 
-Source of truth: `ApplicationCommandService.submit`, `OutboxRelay.relay`, `ApplicationSubmittedListener`/`Handler`, `WorkflowTransitionService`. This is the one flow that currently exercises all three of the project's structural pillars at once: the transactional outbox, the shared state-machine validation port, and the AMQP `consumed_event` dedupe mechanism — so it doubles as the best single diagram for a reviewer who wants to see the async backbone actually working end to end.
+Source of truth: `ApplicationCommandService.submit`, `OutboxRelay.relay`, `ApplicationSubmittedListener`/`Handler`, `WorkflowTransitionService`. This is the one flow that currently exercises all three of the project's structural pillars at once — the transactional outbox, the shared state-machine validation port, and the AMQP `consumed_event` dedupe mechanism — so it's the clearest single diagram of the async backbone actually working end to end.
 
 ```mermaid
 sequenceDiagram
@@ -156,7 +156,7 @@ sequenceDiagram
     Handler-->>Broker: ack (AcknowledgeMode.AUTO, after process() returns)
 ```
 
-Two details a reviewer would otherwise have to read three files to piece together:
+Two details that otherwise require reading three separate files to piece together:
 
 - **Steps 11–26 are one `@Transactional` method** (`ApplicationSubmittedHandler.process`). If the transient-failure branch throws, everything in that range rolls back — including the `VERIFYING` transition — so a redelivered attempt safely re-validates `SUBMITTED → VERIFYING` instead of finding the aggregate already past it. The one exception is the attempt counter itself: `recordAttemptAndGetCount` runs in a separate `REQUIRES_NEW` transaction specifically so the count survives the rollback its own trigger causes.
 - **The listener/handler split is deliberate**, not incidental: `@RabbitListener` (not shown as a separate lifeline above — it's a thin wrapper around `Handler`) only acks after `process()` returns, so the message can't be acked before its transaction actually commits. See ADR 0004 for why the opposite ordering was a real bug here in Epic 2.2.
