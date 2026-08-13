@@ -3,6 +3,7 @@ package io.github.derrickmunyole.loandecisioning.origination.application;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyKeyConflictException;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyKeyInProgressException;
 import io.github.derrickmunyole.loandecisioning.origination.document.DocumentStorageException;
+import io.github.derrickmunyole.loandecisioning.workflow.api.IllegalApplicationTransitionException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -19,7 +20,12 @@ class OriginationExceptionHandler {
         return e.getMessage();
     }
 
-    @ExceptionHandler({ApplicationNotEditableException.class, IdempotencyKeyConflictException.class, IdempotencyKeyInProgressException.class})
+    @ExceptionHandler({
+        ApplicationNotEditableException.class,
+        IdempotencyKeyConflictException.class,
+        IdempotencyKeyInProgressException.class,
+        IllegalApplicationTransitionException.class
+    })
     @ResponseStatus(HttpStatus.CONFLICT)
     String handleConflict(RuntimeException e) {
         return e.getMessage();
