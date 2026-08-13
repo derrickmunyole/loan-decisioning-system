@@ -1,12 +1,8 @@
 package io.github.derrickmunyole.loandecisioning.workflow.workqueue;
 
-import com.rabbitmq.client.Channel;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.RabbitQueueNames;
-import java.io.IOException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.support.AmqpHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 /**
@@ -25,9 +21,7 @@ class NotificationRequestedDlqListener {
     }
 
     @RabbitListener(queues = RabbitQueueNames.NOTIFICATION_REQUESTED_DLQ)
-    void handle(Message message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag)
-            throws IOException {
+    void handle(Message message) {
         handler.process(message);
-        channel.basicAck(deliveryTag, false);
     }
 }
