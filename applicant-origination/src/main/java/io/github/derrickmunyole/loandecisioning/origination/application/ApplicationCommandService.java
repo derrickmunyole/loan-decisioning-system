@@ -10,6 +10,8 @@ import io.github.derrickmunyole.loandecisioning.origination.consent.ConsentRepos
 import io.github.derrickmunyole.loandecisioning.origination.consent.ConsentType;
 import io.github.derrickmunyole.loandecisioning.origination.document.Document;
 import io.github.derrickmunyole.loandecisioning.origination.document.DocumentRepository;
+import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
+import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTransitionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ class ApplicationCommandService {
     private final ConsentRepository consentRepository;
     private final DocumentRepository documentRepository;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final WorkflowTransitionService workflowTransitionService;
 
     ApplicationCommandService(
             ApplicantRepository applicantRepository,
@@ -41,13 +44,15 @@ class ApplicationCommandService {
             ApplicationVersionRepository applicationVersionRepository,
             ConsentRepository consentRepository,
             DocumentRepository documentRepository,
-            OutboxEventPublisher outboxEventPublisher) {
+            OutboxEventPublisher outboxEventPublisher,
+            WorkflowTransitionService workflowTransitionService) {
         this.applicantRepository = applicantRepository;
         this.applicationRepository = applicationRepository;
         this.applicationVersionRepository = applicationVersionRepository;
         this.consentRepository = consentRepository;
         this.documentRepository = documentRepository;
         this.outboxEventPublisher = outboxEventPublisher;
+        this.workflowTransitionService = workflowTransitionService;
     }
 
     @Transactional
@@ -85,7 +90,9 @@ class ApplicationCommandService {
                     "Application " + applicationId + " is missing required draft fields");
         }
 
-        application.markSubmitted(FIRST_VERSION_NUMBER);
+        workflowTransitionService.validateTransition(application.getStatus(), ApplicationStatus.SUBMITTED);
+        application.transitionTo(ApplicationStatus.SUBMITTED);
+        application.setCurrentVersionNumber(FIRST_VERSION_NUMBER);
 
         ApplicationVersion version =
                 applicationVersionRepository.save(
@@ -110,6 +117,11 @@ class ApplicationCommandService {
         outboxEventPublisher.enqueue(
                 new ApplicationSubmittedEvent(
                         applicationId, application.getApplicantId(), FIRST_VERSION_NUMBER));
+
+        // No verification adapter exists until Epic 2.3, so submit itself drives the second hop
+        // rather than leaving the application stranded in SUBMITTED with nothing to advance it.
+        workflowTransitionService.validateTransition(application.getStatus(), ApplicationStatus.VERIFYING);
+        application.transitionTo(ApplicationStatus.VERIFYING);
 
         return ApplicationResponse.from(application);
     }
