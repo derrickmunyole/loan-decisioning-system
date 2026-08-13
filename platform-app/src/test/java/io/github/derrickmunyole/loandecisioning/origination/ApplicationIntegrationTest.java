@@ -126,10 +126,25 @@ class ApplicationIntegrationTest {
 
         String submitKey = UUID.randomUUID().toString();
         Map<String, Object> firstSubmit = submit(token, applicationId, submitKey);
-        assertThat(firstSubmit.get("status")).isEqualTo("SUBMITTED");
+        // No verification adapter exists until Epic 2.3, so submit itself drives both hops
+        // through WorkflowTransitionService: DRAFT -> SUBMITTED -> VERIFYING.
+        assertThat(firstSubmit.get("status")).isEqualTo("VERIFYING");
 
         Map<String, Object> duplicateSubmit = submit(token, applicationId, submitKey);
         assertThat(duplicateSubmit).isEqualTo(firstSubmit);
+
+        // A real (non-idempotent-replay) second submit attempt now hits
+        // WorkflowTransitionService's guard directly, rather than Application's old
+        // requireDraft() check — same 409, different guard, worth asserting explicitly.
+        var headers = authHeaders(token);
+        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        var secondRealSubmit =
+                restTemplate.exchange(
+                        "/applications/" + applicationId + "/submit",
+                        HttpMethod.POST,
+                        new HttpEntity<>(Map.of("consentAccepted", true), headers),
+                        String.class);
+        assertThat(secondRealSubmit.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
         List<ApplicationVersion> versions =
                 applicationVersionRepository.findByApplicationIdOrderByVersionNumberAsc(applicationId);
