@@ -56,6 +56,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/applications/**")
                                         .hasRole("APPLICANT")
+                                        .requestMatchers("/work-queue")
+                                        .hasAnyRole("UNDERWRITER", "OPERATIONS_ANALYST")
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(
