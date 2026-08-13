@@ -1,5 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
+import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -96,11 +97,17 @@ public class Application {
         this.updatedAt = Instant.now();
     }
 
-    public void markSubmitted(int versionNumber) {
-        requireDraft();
-        this.status = ApplicationStatus.SUBMITTED;
-        this.currentVersionNumber = versionNumber;
+    /**
+     * Sets the status directly — legality of the {@code from -> to} edge is the caller's
+     * responsibility, checked against {@code WorkflowTransitionService} before this is called.
+     */
+    public void transitionTo(ApplicationStatus newStatus) {
+        this.status = newStatus;
         this.updatedAt = Instant.now();
+    }
+
+    public void setCurrentVersionNumber(int versionNumber) {
+        this.currentVersionNumber = versionNumber;
     }
 
     public boolean isDraft() {

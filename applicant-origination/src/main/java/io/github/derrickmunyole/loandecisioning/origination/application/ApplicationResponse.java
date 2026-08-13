@@ -1,5 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
+import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
