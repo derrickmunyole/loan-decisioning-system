@@ -1,5 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.infrastructure.messaging;
 
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.RabbitQueueNames;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -21,7 +22,7 @@ public class RabbitTopologyConfig {
     public static final String DEAD_LETTER_EXCHANGE = "loan.events.dlx";
 
     public static final String NOTIFICATION_REQUESTED_QUEUE = "notifications.notification-requested.queue";
-    public static final String NOTIFICATION_REQUESTED_DLQ = "notifications.notification-requested.dlq";
+    public static final String NOTIFICATION_REQUESTED_DLQ = RabbitQueueNames.NOTIFICATION_REQUESTED_DLQ;
     public static final String NOTIFICATION_REQUESTED_ROUTING_KEY = "notification.requested";
 
     @Bean
