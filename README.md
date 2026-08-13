@@ -6,15 +6,17 @@ A portfolio-grade, fully synthetic-data platform for unsecured consumer installm
 
 ## Status
 
-**Milestone 1 (Foundation) is done — Epics 1.1 through 1.6.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — Milestone 2 (Workflow & Verification) is next.
+**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done — Epics 1.1 through 2.3.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, and a work queue surfaces failures that exhaust their retries instead of vanishing silently. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — Milestone 3 (Decisioning) is next.
 
 What exists today:
 - Applicant/application intake: draft → submit, document upload, HTTP idempotency on create/submit
 - 6-role JWT authentication and authorization (`applicant`, `underwriter`, `operations_analyst`, `policy_admin`, `auditor`, `system_service`)
 - Transactional outbox → RabbitMQ, with DLX/retry, `consumed_event` dedupe, and AOP-based audit logging
+- A hand-rolled state machine (`workflow`) validating every application status transition, plus a work queue (`GET /work-queue`) surfacing messages that dead-letter after exhausting retries
+- Async synthetic verification (`verification`): identity and income checks that auto-progress a submitted application to UNDERWRITING, with synthetic input-shape signals for a simulated mismatch or transient failure
 - A Python CLI that seeds demo applications by driving the real REST API end-to-end
 
-Not yet built: workflow/state machine, verification, decisioning, underwriter actions, offers, funding, loan servicing.
+Not yet built: decisioning, underwriter actions, offers, funding, loan servicing.
 
 ## Documentation
 
@@ -30,10 +32,12 @@ A modular monolith: one deployable (`platform-app`) hosting both REST controller
 - **`platform-security`** — 6-role JWT auth, security config, synthetic-user seeding.
 - **`platform-infrastructure`** — transactional outbox, RabbitMQ topology, audit logging, idempotency, correlation IDs.
 - **`applicant-origination`** — applicant/application/document intake, draft→submit.
+- **`workflow`** — the hand-rolled state machine (`WorkflowTransitionService`), `workflow_task` and the work queue.
+- **`verification`** — async synthetic identity/income verification, consuming `application.submitted`.
 - **`platform-app`** — the executable Spring Boot application aggregating all of the above.
 - **`synthetic-data-generator/`** — a `uv`-managed Python CLI that seeds demo applications by calling the real REST API.
 
-**PostgreSQL**, **RabbitMQ**, and **MinIO** run locally via **Docker Compose**. A synchronous FastAPI credit-score service and further modules (`workflow`, `verification`, `decisioning`, `offers`, `funding`) are added as later milestones require them — see `docs/roadmap.md` for the full plan and rationale.
+**PostgreSQL**, **RabbitMQ**, and **MinIO** run locally via **Docker Compose**. A synchronous FastAPI credit-score service and further modules (`decisioning`, `offers`, `funding`) are added as later milestones require them — see `docs/roadmap.md` for the full plan and rationale.
 
 ## Getting started
 
