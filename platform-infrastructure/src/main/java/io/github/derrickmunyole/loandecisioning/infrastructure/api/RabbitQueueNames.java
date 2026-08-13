@@ -8,6 +8,7 @@ package io.github.derrickmunyole.loandecisioning.infrastructure.api;
 public final class RabbitQueueNames {
 
     public static final String NOTIFICATION_REQUESTED_DLQ = "notifications.notification-requested.dlq";
+    public static final String APPLICATION_SUBMITTED_QUEUE = "verification.application-submitted.queue";
 
     private RabbitQueueNames() {}
 }
