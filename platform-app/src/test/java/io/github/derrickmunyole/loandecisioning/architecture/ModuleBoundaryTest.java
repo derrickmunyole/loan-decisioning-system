@@ -12,8 +12,8 @@ import com.tngtech.archunit.lang.ArchRule;
 /**
  * Enforces ADR 0001's cross-module rule: a bounded-context module's internals are private, reachable
  * from other modules only through its {@code xxx.api} package. Scoped to {@code infrastructure},
- * {@code origination}, and {@code workflow} (and, as future milestones add them, {@code verification}/
- * {@code decisioning}/etc.) — {@code common} (shared kernel: value types, base entity types, exception
+ * {@code origination}, {@code workflow}, and {@code verification} (and, as future milestones add
+ * them, {@code decisioning}/etc.) — {@code common} (shared kernel: value types, base entity types, exception
  * hierarchy meant to be used everywhere) and {@code security} (wired by the Spring framework itself via
  * filter chain/annotations, not imported directly by other bounded contexts) are deliberately exempt as
  * targets. They're still bound as callers: reaching from either of them into another module's internals
@@ -53,4 +53,14 @@ class ModuleBoundaryTest {
                     .dependOnClassesThat(
                             resideInAPackage("..workflow..")
                                     .and(not(resideInAPackage("..workflow.api.."))));
+
+    @ArchTest
+    static final ArchRule verification_internals_are_only_reachable_through_its_api =
+            noClasses()
+                    .that()
+                    .resideOutsideOfPackage("..verification..")
+                    .should()
+                    .dependOnClassesThat(
+                            resideInAPackage("..verification..")
+                                    .and(not(resideInAPackage("..verification.api.."))));
 }

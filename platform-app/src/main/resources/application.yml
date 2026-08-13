@@ -7,7 +7,7 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
-    locations: classpath:db/migration,classpath:db/migration/security,classpath:db/migration/infrastructure,classpath:db/migration/origination,classpath:db/migration/workflow
+    locations: classpath:db/migration,classpath:db/migration/security,classpath:db/migration/infrastructure,classpath:db/migration/origination,classpath:db/migration/workflow,classpath:db/migration/verification
   servlet:
     multipart:
       max-file-size: 10MB

@@ -118,11 +118,8 @@ class ApplicationCommandService {
                 new ApplicationSubmittedEvent(
                         applicationId, application.getApplicantId(), FIRST_VERSION_NUMBER));
 
-        // No verification adapter exists until Epic 2.3, so submit itself drives the second hop
-        // rather than leaving the application stranded in SUBMITTED with nothing to advance it.
-        workflowTransitionService.validateTransition(application.getStatus(), ApplicationStatus.VERIFYING);
-        application.transitionTo(ApplicationStatus.VERIFYING);
-
+        // The verification module's application.submitted consumer (Epic 2.3) now owns the
+        // SUBMITTED->VERIFYING->UNDERWRITING hops, atomically, once it processes this event.
         return ApplicationResponse.from(application);
     }
 }
