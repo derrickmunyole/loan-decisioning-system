@@ -126,9 +126,10 @@ class ApplicationIntegrationTest {
 
         String submitKey = UUID.randomUUID().toString();
         Map<String, Object> firstSubmit = submit(token, applicationId, submitKey);
-        // No verification adapter exists until Epic 2.3, so submit itself drives both hops
-        // through WorkflowTransitionService: DRAFT -> SUBMITTED -> VERIFYING.
-        assertThat(firstSubmit.get("status")).isEqualTo("VERIFYING");
+        // As of Epic 2.3, the VERIFYING/UNDERWRITING hops happen asynchronously once the
+        // verification module's consumer processes application.submitted — submit() itself only
+        // still owns DRAFT -> SUBMITTED.
+        assertThat(firstSubmit.get("status")).isEqualTo("SUBMITTED");
 
         Map<String, Object> duplicateSubmit = submit(token, applicationId, submitKey);
         assertThat(duplicateSubmit).isEqualTo(firstSubmit);
