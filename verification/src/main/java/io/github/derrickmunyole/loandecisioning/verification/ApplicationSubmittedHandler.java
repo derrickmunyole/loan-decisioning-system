@@ -2,10 +2,12 @@ package io.github.derrickmunyole.loandecisioning.verification;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.AmqpDedupeService;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationSubmittedEvent;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationTransitionService;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationVersionQueryService;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationVersionView;
+import io.github.derrickmunyole.loandecisioning.verification.api.UnderwritingRequestedEvent;
 import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import java.io.IOException;
 import java.util.NoSuchElementException;
@@ -25,6 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
  * retry correctness: if the transient-failure trigger throws, the whole transaction — including
  * the VERIFYING hop — rolls back, so a redelivered attempt can safely re-validate {@code
  * SUBMITTED -> VERIFYING} instead of finding the application already past that state.
+ *
+ * <p>Epic 3.1 adds one real intermediate event, {@code underwriting.requested}, enqueued in this
+ * same transaction right after the {@code UNDERWRITING} hop — unlike {@code
+ * verification.requested}/{@code verification.completed}, this one now has an actual consumer
+ * ({@code decisioning}, building the immutable {@code UnderwritingSnapshot}), which is the bar
+ * this codebase applies before publishing an intermediate event at all.
  */
 @Service
 class ApplicationSubmittedHandler {
@@ -37,6 +45,7 @@ class ApplicationSubmittedHandler {
     private final VerificationAttemptTracker verificationAttemptTracker;
     private final VerificationCaseRepository verificationCaseRepository;
     private final SyntheticVerificationEngine syntheticVerificationEngine;
+    private final OutboxEventPublisher outboxEventPublisher;
     private final ObjectMapper objectMapper;
 
     ApplicationSubmittedHandler(
@@ -46,6 +55,7 @@ class ApplicationSubmittedHandler {
             VerificationAttemptTracker verificationAttemptTracker,
             VerificationCaseRepository verificationCaseRepository,
             SyntheticVerificationEngine syntheticVerificationEngine,
+            OutboxEventPublisher outboxEventPublisher,
             ObjectMapper objectMapper) {
         this.amqpDedupeService = amqpDedupeService;
         this.applicationTransitionService = applicationTransitionService;
@@ -53,6 +63,7 @@ class ApplicationSubmittedHandler {
         this.verificationAttemptTracker = verificationAttemptTracker;
         this.verificationCaseRepository = verificationCaseRepository;
         this.syntheticVerificationEngine = syntheticVerificationEngine;
+        this.outboxEventPublisher = outboxEventPublisher;
         this.objectMapper = objectMapper;
     }
 
@@ -109,6 +120,9 @@ class ApplicationSubmittedHandler {
                         income.detail()));
 
         applicationTransitionService.transitionTo(event.applicationId(), ApplicationStatus.UNDERWRITING);
+
+        outboxEventPublisher.enqueue(
+                new UnderwritingRequestedEvent(event.applicationId(), event.versionNumber()));
 
         amqpDedupeService.markConsumed(CONSUMER_NAME, eventId);
     }
