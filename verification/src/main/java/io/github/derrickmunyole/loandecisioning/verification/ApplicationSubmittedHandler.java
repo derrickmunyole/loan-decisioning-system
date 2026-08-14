@@ -69,7 +69,7 @@ class ApplicationSubmittedHandler {
 
     @Transactional
     void process(Message message) throws IOException {
-        UUID eventId = UUID.fromString((String) message.getMessageProperties().getHeader("eventId"));
+        UUID eventId = UUID.fromString(message.getMessageProperties().getHeader("eventId"));
         if (amqpDedupeService.alreadyConsumed(CONSUMER_NAME, eventId)) {
             return;
         }
