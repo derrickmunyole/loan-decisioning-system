@@ -1,5 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.workflow.workqueue;
 
+import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskType;
 import java.time.Instant;
 import java.util.UUID;
 

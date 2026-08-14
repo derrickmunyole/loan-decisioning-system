@@ -11,6 +11,10 @@ public final class RabbitQueueNames {
     public static final String APPLICATION_SUBMITTED_QUEUE = "verification.application-submitted.queue";
     public static final String UNDERWRITING_REQUESTED_QUEUE = "decisioning.underwriting-requested.queue";
     public static final String UNDERWRITING_REQUESTED_DLQ = "decisioning.underwriting-requested.dlq";
+    public static final String UNDERWRITING_SNAPSHOT_CREATED_QUEUE =
+            "decisioning.underwriting-snapshot-created.queue";
+    public static final String UNDERWRITING_SNAPSHOT_CREATED_DLQ =
+            "decisioning.underwriting-snapshot-created.dlq";
 
     private RabbitQueueNames() {}
 }

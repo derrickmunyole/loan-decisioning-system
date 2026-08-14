@@ -1,5 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.workflow.workqueue;
 
+import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

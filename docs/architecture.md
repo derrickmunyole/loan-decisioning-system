@@ -54,7 +54,7 @@ stateDiagram-v2
 
 `WorkflowTransitionService` validates every `from → to` edge shown above and throws `IllegalApplicationTransitionException` (409) on anything not drawn — e.g. funding a declined application or accepting an expired offer. The service is pure validation only; it doesn't persist, audit, or publish. The caller (`ApplicationCommandService` for the `DRAFT → SUBMITTED` hop, `verification`'s `ApplicationSubmittedHandler` for `SUBMITTED → VERIFYING → UNDERWRITING`) owns the entity mutation, `@Audited` call, and outbox enqueue, all inside its own transaction — see ADR 0007.
 
-As of Epic 2.3, live traffic only reaches as far as `UNDERWRITING`; everything from `APPROVED` onward is drawn from the blueprint's state model but not yet exercised by running code (Milestone 3+).
+As of Epic 3.4, live traffic reaches `APPROVED`, `DECLINED`, `REFERRED`, and `CONDITIONAL_APPROVAL` — the automated decision engine drives all four edges out of `UNDERWRITING`. Everything from `OFFERED` onward is still drawn from the blueprint's state model but not yet exercised by running code (Milestone 4+). The `REFERRED → UNDERWRITING`/`REFERRED → APPROVED`/`REFERRED → DECLINED` edges (underwriter override) are also not yet exercised — that's Milestone 4's `4.1`.
 
 ## Module dependency graph
 
@@ -93,6 +93,7 @@ flowchart TD
     decisioning --> infrastructure
     decisioning --> origination
     decisioning --> verification
+    decisioning --> workflow
 
     app --> common
     app --> security
@@ -103,7 +104,7 @@ flowchart TD
     app --> decisioning
 ```
 
-`platform-app` is the only executable jar — one deployable hosting both REST controllers and `@RabbitListener`s, per the roadmap's modular-monolith decision. It's also the only module allowed to depend on all seven others; none of the bounded-context modules depend on each other's siblings except through the edges drawn above (e.g. `verification` reaches `applicant-origination` only through `origination.api`'s `ApplicationVersionQueryService`/`ApplicationTransitionService` ports, and `decisioning` reaches both `applicant-origination` and `verification` the same way — the "extract a port on the second real caller" pattern ADR 0007 documents for `workflow`).
+`platform-app` is the only executable jar — one deployable hosting both REST controllers and `@RabbitListener`s, per the roadmap's modular-monolith decision. It's also the only module allowed to depend on all seven others; none of the bounded-context modules depend on each other's siblings except through the edges drawn above (e.g. `verification` reaches `applicant-origination` only through `origination.api`'s `ApplicationVersionQueryService`/`ApplicationTransitionService` ports, and `decisioning` reaches `applicant-origination` and `verification` the same way — the "extract a port on the second real caller" pattern ADR 0007 documents for `workflow`). Epic 3.4 gave `workflow` a second external caller of its own: `decisioning` needs to raise a `workflow_task` when the credit-score provider is unreachable, so `WorkflowTaskType` moved from `workflow.workqueue` (internal) to `workflow.api` alongside the new `WorkflowTaskCreationService` port — the same pattern applied one module over.
 
 `platform-common` and `platform-security` are exempt as ArchUnit *targets* (nothing stops another module from importing their public classes directly — `common` is a shared kernel of value types/base entities/exceptions meant to be used everywhere, and `security` is wired by the Spring framework itself via filter chain/annotations rather than imported directly). They're still bound as *callers*: `ModuleBoundaryTest` would fail if either reached into, say, `infrastructure`'s or `origination`'s internals.
 
@@ -168,4 +169,72 @@ Two details that otherwise require reading three separate files to piece togethe
 - **Steps 11–27 are one `@Transactional` method** (`ApplicationSubmittedHandler.process`). If the transient-failure branch throws, everything in that range rolls back — including the `VERIFYING` transition and the `underwriting.requested` outbox insert — so a redelivered attempt safely re-validates `SUBMITTED → VERIFYING` instead of finding the aggregate already past it. The one exception is the attempt counter itself: `recordAttemptAndGetCount` runs in a separate `REQUIRES_NEW` transaction specifically so the count survives the rollback its own trigger causes.
 - **The listener/handler split is deliberate**, not incidental: `@RabbitListener` (not shown as a separate lifeline above — it's a thin wrapper around `Handler`) only acks after `process()` returns, so the message can't be acked before its transaction actually commits. See ADR 0004 for why the opposite ordering was a real bug here in Epic 2.2.
 
-This is also the boundary the state diagram above flags: `Handler` never drives status past `UNDERWRITING`. Epic 3.1's `decisioning` module now picks up from step 26 onward — its `UnderwritingRequestedHandler` consumes `underwriting.requested` in its own transaction and builds the immutable `UnderwritingSnapshot`, but doesn't drive any further status transition itself (Milestone 3's later epics do).
+This is also the boundary the state diagram above flags: `Handler` never drives status past `UNDERWRITING`. The `decisioning` module picks up from step 26 onward, in its own async chain diagrammed next.
+
+## Underwriting → automated decision (async golden path, continued)
+
+Source of truth: `UnderwritingRequestedHandler` (Epic 3.1), `DecisionEngineHandler`/`CreditScoreClient` (Epic 3.4), `PolicyEvaluator`. Picks up exactly where the diagram above leaves off — `underwriting.requested` was enqueued as step 26's outbox insert. Two consumers, two transactions, deliberately kept apart: the credit-score HTTP call (ADR 0008) must never run while a DB transaction is held open, so the snapshot build (3.1) and the decision itself (3.4) are split across a second outbox hop (`underwriting.snapshot.created`) rather than one handler doing both.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Broker as RabbitMQ (loan.events exchange)
+    participant Snapshot as UnderwritingRequestedHandler (decisioning)
+    participant DB as Postgres
+    participant Relay as OutboxRelay (infrastructure, scheduled)
+    participant Decision as DecisionEngineHandler (decisioning)
+    participant Score as credit-score-service (FastAPI, HTTP)
+    participant Origination as ApplicationTransitionService (origination)
+    participant Workflow as WorkflowTransitionService (workflow)
+
+    Note over Broker,DB: Async, AMQP consumer, its own transaction
+    Broker->>Snapshot: deliver underwriting.requested
+    Snapshot->>DB: alreadyConsumed(consumer, eventId)? (consumed_event dedupe)
+    Snapshot->>DB: save UnderwritingSnapshot (facts JSON, insert-only)
+    Snapshot->>DB: insert outbox_event(underwriting.snapshot.created)
+    Snapshot->>DB: markConsumed(consumer, eventId)
+    Snapshot-->>Broker: ack (after process() returns)
+
+    Note over Relay,Broker: Async, scheduled relay with publisher confirms
+    Relay->>DB: lockNextPendingBatch() (every ~2s)
+    Relay->>Broker: convertAndSend(loan.events, underwriting.snapshot.created)
+    Broker-->>Relay: confirm ack
+    Relay->>DB: mark outbox_event PUBLISHED
+
+    Note over Broker,Decision: Async, AMQP consumer, own transaction — no HTTP call inside it yet
+    Broker->>Decision: deliver decisioning.underwriting-snapshot-created.queue
+    Decision->>DB: alreadyConsumed(consumer, eventId)?
+    Decision->>DB: load UnderwritingSnapshot + published Policy/Scorecard/PricingVersion
+
+    alt verification evidence contains a FAILED check
+        Decision->>DB: save Decision(REFERRED), no credit-score call
+    else evidence clean
+        Note over Decision,Score: Still inside the @Transactional method, but the call itself<br/>is synchronous WebClient + Resilience4j — deliberately outside any DB write
+        Decision->>Score: POST /score (@CircuitBreaker)
+        alt provider reachable
+            Score-->>Decision: score, modelVersion, reasonContributions
+            Decision->>Decision: PolicyEvaluator.evaluate(score, bandCutoffs, bandOutcomes)
+            Decision->>DB: save Decision(outcome, full version traceability)
+        else timeout / circuit open / connection refused
+            Decision->>Origination: transitionTo(applicationId, REFERRED)
+            Decision->>DB: create workflow_task(CREDIT_SCORE_PROVIDER_UNAVAILABLE)
+            Note over Decision,DB: No Decision row — no valid score/model version to record
+        end
+    end
+
+    opt a Decision row was recorded
+        Decision->>Origination: transitionTo(applicationId, outcome)
+        Origination->>Workflow: validateTransition(UNDERWRITING, outcome)
+        Workflow-->>Origination: legal
+        Origination->>DB: status=outcome
+    end
+
+    Decision->>DB: markConsumed(consumer, eventId)
+    Decision-->>Broker: ack (after process() returns)
+```
+
+Three things worth calling out explicitly:
+
+- **Why a second outbox hop instead of one handler doing both jobs**: `UnderwritingRequestedHandler`'s transaction only ever touches Postgres — cheap to hold open. `DecisionEngineHandler`'s does not: it makes a real outbound HTTP call to `credit-score-service`. Holding a DB transaction open across that call would tie up a connection-pool slot for however long the provider takes (or times out), so the two are split across a real event rather than one handler calling the other directly. See ADR 0008.
+- **The `@CircuitBreaker` wraps a blocking call, not a reactive one** — `CreditScoreClient` uses `WebClient` but calls `.block(timeout)` immediately, since this call is synchronous by roadmap design. Resilience4j's `TimeLimiter` (built for reactive/async return types) doesn't apply here; the timeout is enforced by `.block(Duration)` itself.
+- **No `Decision` row on the outage path is deliberate, not an oversight** — recording one would mean inventing a placeholder `credit_score_model_version`, which breaks the "a `Decision` always carries the exact version IDs it was computed from" invariant. The `workflow_task` is what makes the outage ops-visible instead.

@@ -50,3 +50,16 @@ app:
       access-key: ${MINIO_ROOT_USER:loan_app}
       secret-key: ${MINIO_ROOT_PASSWORD:loan_app_secret}
       bucket: loan-documents
+  credit-score:
+    base-url: ${CREDIT_SCORE_SERVICE_URL:http://localhost:8001}
+    timeout: PT3S
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      creditScore:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3

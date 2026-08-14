@@ -1,6 +1,7 @@
 package io.github.derrickmunyole.loandecisioning.workflow.workqueue;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.AmqpDedupeService;
+import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskType;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
