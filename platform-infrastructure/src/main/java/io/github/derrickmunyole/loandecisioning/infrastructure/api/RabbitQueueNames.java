@@ -9,6 +9,8 @@ public final class RabbitQueueNames {
 
     public static final String NOTIFICATION_REQUESTED_DLQ = "notifications.notification-requested.dlq";
     public static final String APPLICATION_SUBMITTED_QUEUE = "verification.application-submitted.queue";
+    public static final String UNDERWRITING_REQUESTED_QUEUE = "decisioning.underwriting-requested.queue";
+    public static final String UNDERWRITING_REQUESTED_DLQ = "decisioning.underwriting-requested.dlq";
 
     private RabbitQueueNames() {}
 }
