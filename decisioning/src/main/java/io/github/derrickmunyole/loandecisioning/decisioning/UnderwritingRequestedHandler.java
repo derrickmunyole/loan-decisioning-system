@@ -1,7 +1,9 @@
 package io.github.derrickmunyole.loandecisioning.decisioning;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.derrickmunyole.loandecisioning.decisioning.api.UnderwritingSnapshotCreatedEvent;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.AmqpDedupeService;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationVersionQueryService;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationVersionView;
 import io.github.derrickmunyole.loandecisioning.verification.api.UnderwritingRequestedEvent;
@@ -24,6 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
  * backstop the roadmap's Epic 3.1 done-criterion asks for — it holds even against two distinct
  * {@code underwriting.requested} deliveries (different {@code eventId}) for the same application
  * version, which AMQP dedupe alone can't catch.
+ *
+ * <p>Epic 3.4 adds {@code underwriting.snapshot.created} — a blueprint-named event nothing
+ * published until the decision engine existed to consume it — enqueued only on the branch that
+ * actually just inserted the snapshot, not on a redelivery that finds one already there.
  */
 @Service
 class UnderwritingRequestedHandler {
@@ -34,6 +40,7 @@ class UnderwritingRequestedHandler {
     private final ApplicationVersionQueryService applicationVersionQueryService;
     private final VerificationEvidenceQueryService verificationEvidenceQueryService;
     private final UnderwritingSnapshotRepository underwritingSnapshotRepository;
+    private final OutboxEventPublisher outboxEventPublisher;
     private final ObjectMapper objectMapper;
 
     UnderwritingRequestedHandler(
@@ -41,11 +48,13 @@ class UnderwritingRequestedHandler {
             ApplicationVersionQueryService applicationVersionQueryService,
             VerificationEvidenceQueryService verificationEvidenceQueryService,
             UnderwritingSnapshotRepository underwritingSnapshotRepository,
+            OutboxEventPublisher outboxEventPublisher,
             ObjectMapper objectMapper) {
         this.amqpDedupeService = amqpDedupeService;
         this.applicationVersionQueryService = applicationVersionQueryService;
         this.verificationEvidenceQueryService = verificationEvidenceQueryService;
         this.underwritingSnapshotRepository = underwritingSnapshotRepository;
+        this.outboxEventPublisher = outboxEventPublisher;
         this.objectMapper = objectMapper;
     }
 
@@ -74,6 +83,8 @@ class UnderwritingRequestedHandler {
             String factsJson = objectMapper.writeValueAsString(buildFacts(version, event.applicationId()));
             underwritingSnapshotRepository.save(
                     new UnderwritingSnapshot(event.applicationId(), version.id(), factsJson));
+            outboxEventPublisher.enqueue(
+                    new UnderwritingSnapshotCreatedEvent(event.applicationId(), version.id()));
         }
 
         amqpDedupeService.markConsumed(CONSUMER_NAME, eventId);
