@@ -6,7 +6,7 @@ A portfolio-grade, fully synthetic-data platform for unsecured consumer installm
 
 ## Status
 
-**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done — Epics 1.1 through 2.3.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, and a work queue surfaces failures that exhaust their retries instead of vanishing silently. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — Milestone 3 (Decisioning) is next.
+**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done, and Milestone 3 (Decisioning) is in progress — Epics 1.1 through 3.1.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, a work queue surfaces failures that exhaust their retries instead of vanishing silently, and reaching UNDERWRITING now freezes an immutable snapshot of the application's facts and evidence for decisioning to build on. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — the rest of Milestone 3 (policy/scorecard/pricing admin, the credit-score service, and decision engine integration) is next.
 
 What exists today:
 - Applicant/application intake: draft → submit, document upload, HTTP idempotency on create/submit
@@ -14,9 +14,10 @@ What exists today:
 - Transactional outbox → RabbitMQ, with DLX/retry, `consumed_event` dedupe, and AOP-based audit logging
 - A hand-rolled state machine (`workflow`) validating every application status transition, plus a work queue (`GET /work-queue`) surfacing messages that dead-letter after exhausting retries
 - Async synthetic verification (`verification`): identity and income checks that auto-progress a submitted application to UNDERWRITING, with synthetic input-shape signals for a simulated mismatch or transient failure
+- An immutable underwriting snapshot (`decisioning`), created exactly once per application the moment it reaches UNDERWRITING
 - A Python CLI that seeds demo applications by driving the real REST API end-to-end
 
-Not yet built: decisioning, underwriter actions, offers, funding, loan servicing.
+Not yet built: policy/scorecard/pricing admin, the credit-score service, decision engine integration, underwriter actions, offers, funding, loan servicing.
 
 ## Documentation
 
@@ -34,10 +35,11 @@ A modular monolith: one deployable (`platform-app`) hosting both REST controller
 - **`applicant-origination`** — applicant/application/document intake, draft→submit.
 - **`workflow`** — the hand-rolled state machine (`WorkflowTransitionService`), `workflow_task` and the work queue.
 - **`verification`** — async synthetic identity/income verification, consuming `application.submitted`.
+- **`decisioning`** — the immutable underwriting snapshot, consuming `underwriting.requested`.
 - **`platform-app`** — the executable Spring Boot application aggregating all of the above.
 - **`synthetic-data-generator/`** — a `uv`-managed Python CLI that seeds demo applications by calling the real REST API.
 
-**PostgreSQL**, **RabbitMQ**, and **MinIO** run locally via **Docker Compose**. A synchronous FastAPI credit-score service and further modules (`decisioning`, `offers`, `funding`) are added as later milestones require them — see `docs/roadmap.md` for the full plan and rationale.
+**PostgreSQL**, **RabbitMQ**, and **MinIO** run locally via **Docker Compose**. A synchronous FastAPI credit-score service and further modules (`offers`, `funding`) are added as later milestones require them — see `docs/roadmap.md` for the full plan and rationale.
 
 ## Getting started
 
