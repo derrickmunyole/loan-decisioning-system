@@ -51,7 +51,7 @@ The system is an **origination and decisioning** platform, not a production lend
 
 - State transitions are explicit, authorized, and recorded.
 - Long-running work runs asynchronously with retries, backoff, a dead-letter queue, and a manual-resolution path.
-- Third-party failures must not silently produce an approval/decline; they result in `PENDING_REVIEW` or a recoverable exception.
+- Third-party failures must not silently produce an approval/decline; they result in `REFERRED` (routed to an underwriter, same as any other case needing human judgment) or a recoverable exception.
 - Notifications are sent through an outbox so an application update cannot be committed without an eventual notification record.
 
 ## 4. State model
