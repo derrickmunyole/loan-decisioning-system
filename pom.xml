@@ -33,6 +33,7 @@
     <minio.version>8.5.4</minio.version>
     <archunit.version>1.5.0</archunit.version>
     <resilience4j.version>2.3.0</resilience4j.version>
+    <wiremock.version>3.9.2</wiremock.version>
   </properties>
 
   <dependencyManagement>
@@ -117,6 +118,13 @@
         <groupId>io.github.resilience4j</groupId>
         <artifactId>resilience4j-spring-boot3</artifactId>
         <version>${resilience4j.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.wiremock</groupId>
+        <artifactId>wiremock-standalone</artifactId>
+        <version>${wiremock.version}</version>
+        <scope>test</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>
