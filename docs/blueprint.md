@@ -93,8 +93,8 @@ The workflow engine must reject invalid transitions, such as funding a declined 
 | `verification_case` | `id`, application/version, provider, type, status, request/response reference | Identity, income, and bank-account verification |
 | `underwriting_snapshot` | `id`, application version, normalized facts JSON, evidence references, created time | Immutable input to every decision |
 | `policy_version` | `id`, status, effective date, rules JSON, checksum | Draft → published; published rows immutable |
-| `scorecard_version` | `id`, formula/config, checksum | Deterministic and explainable |
-| `pricing_version` | `id`, APR/term rules, checksum | Separate risk eligibility from pricing |
+| `scorecard_version` | `id`, status, formula/config, checksum | Draft → published; deterministic and explainable |
+| `pricing_version` | `id`, status, APR/term rules, checksum | Draft → published; separate risk eligibility from pricing |
 | `decision` | `id`, snapshot/policy/scorecard/pricing IDs, outcome, reason codes, actor, decided time | Append-only; includes automated and manual decisions |
 | `offer` | `id`, decision ID, principal, APR, payment, term, expiry, status | Immutable commercial terms |
 | `funding_instruction` | `id`, offer ID, provider idempotency key, amount, destination token, status | One instruction per accepted offer |
@@ -136,7 +136,9 @@ application 1 ── 0..1 loan_account 1 ── * repayment_schedule_item
 | `POST /offers/{id}/accept` | Accept unexpired offer idempotently |
 | `GET /work-queue` | Underwriter/operations task queue |
 | `POST /cases/{id}/decision` | Underwriter decision or override; requires reason code |
-| `POST /policies` and `POST /policies/{id}/publish` | Create and publish immutable decision policy version |
+| `POST /policies` and `POST /policies/{id}/publish` | Create and publish an immutable policy version |
+| `POST /scorecards` and `POST /scorecards/{id}/publish` | Create and publish an immutable scorecard version |
+| `POST /pricing` and `POST /pricing/{id}/publish` | Create and publish an immutable pricing version |
 | `POST /webhooks/mock-payments` | Receive signed, deduplicated provider status callbacks |
 
 ## 7. Events and asynchronous work
