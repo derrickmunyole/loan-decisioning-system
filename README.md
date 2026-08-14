@@ -6,7 +6,7 @@ A portfolio-grade, fully synthetic-data platform for unsecured consumer installm
 
 ## Status
 
-**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done, and Milestone 3 (Decisioning) is in progress — Epics 1.1 through 3.1.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, a work queue surfaces failures that exhaust their retries instead of vanishing silently, and reaching UNDERWRITING now freezes an immutable snapshot of the application's facts and evidence for decisioning to build on. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — the rest of Milestone 3 (policy/scorecard/pricing admin, the credit-score service, and decision engine integration) is next.
+**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done, and Milestone 3 (Decisioning) is in progress — Epics 1.1 through 3.2.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, a work queue surfaces failures that exhaust their retries instead of vanishing silently, and reaching UNDERWRITING now freezes an immutable snapshot of the application's facts and evidence for decisioning to build on. A policy admin can now publish immutable, versioned policy/scorecard/pricing rules for that decisioning to eventually evaluate against. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — the rest of Milestone 3 (the credit-score service and decision engine integration) is next.
 
 What exists today:
 - Applicant/application intake: draft → submit, document upload, HTTP idempotency on create/submit
@@ -15,9 +15,10 @@ What exists today:
 - A hand-rolled state machine (`workflow`) validating every application status transition, plus a work queue (`GET /work-queue`) surfacing messages that dead-letter after exhausting retries
 - Async synthetic verification (`verification`): identity and income checks that auto-progress a submitted application to UNDERWRITING, with synthetic input-shape signals for a simulated mismatch or transient failure
 - An immutable underwriting snapshot (`decisioning`), created exactly once per application the moment it reaches UNDERWRITING
+- Immutable, versioned policy/scorecard/pricing administration (`decisioning`), each independently publishable by a `policy_admin`
 - A Python CLI that seeds demo applications by driving the real REST API end-to-end
 
-Not yet built: policy/scorecard/pricing admin, the credit-score service, decision engine integration, underwriter actions, offers, funding, loan servicing.
+Not yet built: the credit-score service, decision engine integration, underwriter actions, offers, funding, loan servicing.
 
 ## Documentation
 
