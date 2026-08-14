@@ -6,7 +6,7 @@ A portfolio-grade, fully synthetic-data platform for unsecured consumer installm
 
 ## Status
 
-**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done, and Milestone 3 (Decisioning) is in progress — Epics 1.1 through 3.2.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, a work queue surfaces failures that exhaust their retries instead of vanishing silently, and reaching UNDERWRITING now freezes an immutable snapshot of the application's facts and evidence for decisioning to build on. A policy admin can now publish immutable, versioned policy/scorecard/pricing rules for that decisioning to eventually evaluate against. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — the rest of Milestone 3 (the credit-score service and decision engine integration) is next.
+**Milestones 1 (Foundation) and 2 (Workflow & Verification) are done, and Milestone 3 (Decisioning) is in progress — Epics 1.1 through 3.3.** The Maven reactor, local infra, 6-role JWT auth, transactional-outbox/RabbitMQ plumbing, the applicant draft→submit flow, a synthetic data generator, and ADR discipline are all in place, with an ArchUnit suite enforcing module boundaries. Submitted applications now drive themselves through a hand-rolled state machine — DRAFT → SUBMITTED → VERIFYING → UNDERWRITING — via an async verification consumer with deterministic identity/income checks, a work queue surfaces failures that exhaust their retries instead of vanishing silently, and reaching UNDERWRITING now freezes an immutable snapshot of the application's facts and evidence for decisioning to build on. A policy admin can now publish immutable, versioned policy/scorecard/pricing rules for that decisioning to eventually evaluate against, and a standalone credit-score service can now score an applicant's affordability — not yet wired to anything else. See `docs/roadmap.md` for the full milestone/epic breakdown and current scope — decision engine integration, the piece that ties policy/scorecard/pricing and the credit score together into an actual decision, is next.
 
 What exists today:
 - Applicant/application intake: draft → submit, document upload, HTTP idempotency on create/submit
@@ -16,9 +16,10 @@ What exists today:
 - Async synthetic verification (`verification`): identity and income checks that auto-progress a submitted application to UNDERWRITING, with synthetic input-shape signals for a simulated mismatch or transient failure
 - An immutable underwriting snapshot (`decisioning`), created exactly once per application the moment it reaches UNDERWRITING
 - Immutable, versioned policy/scorecard/pricing administration (`decisioning`), each independently publishable by a `policy_admin`
+- A standalone credit-score FastAPI service (`credit-score-service/`) — deterministic, explainable scoring, not yet called by anything
 - A Python CLI that seeds demo applications by driving the real REST API end-to-end
 
-Not yet built: the credit-score service, decision engine integration, underwriter actions, offers, funding, loan servicing.
+Not yet built: decision engine integration, underwriter actions, offers, funding, loan servicing.
 
 ## Documentation
 
@@ -39,8 +40,9 @@ A modular monolith: one deployable (`platform-app`) hosting both REST controller
 - **`decisioning`** — the immutable underwriting snapshot, consuming `underwriting.requested`.
 - **`platform-app`** — the executable Spring Boot application aggregating all of the above.
 - **`synthetic-data-generator/`** — a `uv`-managed Python CLI that seeds demo applications by calling the real REST API.
+- **`credit-score-service/`** — a standalone, stateless FastAPI service: a synchronous, deterministic, explainable weighted-formula scorer, played as an external credit bureau. Not called by anything yet — the Java decision engine that calls it is a later epic.
 
-**PostgreSQL**, **RabbitMQ**, and **MinIO** run locally via **Docker Compose**. A synchronous FastAPI credit-score service and further modules (`offers`, `funding`) are added as later milestones require them — see `docs/roadmap.md` for the full plan and rationale.
+**PostgreSQL**, **RabbitMQ**, and **MinIO** run locally via **Docker Compose**, alongside `credit-score-service`. Further modules (`offers`, `funding`) are added as later milestones require them — see `docs/roadmap.md` for the full plan and rationale.
 
 ## Getting started
 
