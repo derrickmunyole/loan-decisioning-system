@@ -19,6 +19,7 @@
     <module>applicant-origination</module>
     <module>workflow</module>
     <module>verification</module>
+    <module>decisioning</module>
     <module>platform-app</module>
   </modules>
 
@@ -71,6 +72,12 @@
       <dependency>
         <groupId>io.github.derrickmunyole</groupId>
         <artifactId>verification</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.github.derrickmunyole</groupId>
+        <artifactId>decisioning</artifactId>
         <version>${project.version}</version>
       </dependency>
 

@@ -20,11 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
  * Losing the {@code eventId} header degrades to "dedupe skipped for this one row," not a crash
  * that would let the broker's own retry-then-drop behavior (this queue has no further DLX) erase
  * the failure record entirely.
+ *
+ * <p>Generic over which DLQ it's handling — {@code consumerName} identifies the caller for the
+ * {@code consumed_event} dedupe row, so two different DLQ listeners sharing this one handler don't
+ * collide under the same dedupe identity (harmless for correctness, since {@code eventId} alone is
+ * already globally unique, but confusing for anyone reading {@code consumed_event} rows later).
  */
 @Service
 class DeadLetterTaskHandler {
 
-    static final String CONSUMER_NAME = "notification-requested-dlq-listener";
     private static final int MAX_DETAIL_LENGTH = 2000;
 
     private final AmqpDedupeService amqpDedupeService;
@@ -37,9 +41,9 @@ class DeadLetterTaskHandler {
     }
 
     @Transactional
-    void process(Message message) {
+    void process(Message message, String consumerName) {
         UUID eventId = extractEventId(message);
-        if (eventId != null && amqpDedupeService.alreadyConsumed(CONSUMER_NAME, eventId)) {
+        if (eventId != null && amqpDedupeService.alreadyConsumed(consumerName, eventId)) {
             return;
         }
 
@@ -54,7 +58,7 @@ class DeadLetterTaskHandler {
                         asString(message.getMessageProperties().getHeader("correlationId"))));
 
         if (eventId != null) {
-            amqpDedupeService.markConsumed(CONSUMER_NAME, eventId);
+            amqpDedupeService.markConsumed(consumerName, eventId);
         }
     }
 

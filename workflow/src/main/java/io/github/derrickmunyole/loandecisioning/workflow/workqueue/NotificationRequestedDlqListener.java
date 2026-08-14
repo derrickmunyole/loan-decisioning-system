@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 @Component
 class NotificationRequestedDlqListener {
 
+    private static final String CONSUMER_NAME = "notification-requested-dlq-listener";
+
     private final DeadLetterTaskHandler handler;
 
     NotificationRequestedDlqListener(DeadLetterTaskHandler handler) {
@@ -22,6 +24,6 @@ class NotificationRequestedDlqListener {
 
     @RabbitListener(queues = RabbitQueueNames.NOTIFICATION_REQUESTED_DLQ)
     void handle(Message message) {
-        handler.process(message);
+        handler.process(message, CONSUMER_NAME);
     }
 }

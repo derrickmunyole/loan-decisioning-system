@@ -29,6 +29,10 @@ public class RabbitTopologyConfig {
     public static final String APPLICATION_SUBMITTED_DLQ = "verification.application-submitted.dlq";
     public static final String APPLICATION_SUBMITTED_ROUTING_KEY = "application.submitted";
 
+    public static final String UNDERWRITING_REQUESTED_QUEUE = RabbitQueueNames.UNDERWRITING_REQUESTED_QUEUE;
+    public static final String UNDERWRITING_REQUESTED_DLQ = RabbitQueueNames.UNDERWRITING_REQUESTED_DLQ;
+    public static final String UNDERWRITING_REQUESTED_ROUTING_KEY = "underwriting.requested";
+
     @Bean
     TopicExchange eventsExchange() {
         return new TopicExchange(EVENTS_EXCHANGE, true, false);
@@ -91,5 +95,32 @@ public class RabbitTopologyConfig {
         return BindingBuilder.bind(applicationSubmittedDlq())
                 .to(deadLetterExchange())
                 .with(APPLICATION_SUBMITTED_QUEUE);
+    }
+
+    @Bean
+    Queue underwritingRequestedQueue() {
+        return QueueBuilder.durable(UNDERWRITING_REQUESTED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", UNDERWRITING_REQUESTED_QUEUE)
+                .build();
+    }
+
+    @Bean
+    Queue underwritingRequestedDlq() {
+        return QueueBuilder.durable(UNDERWRITING_REQUESTED_DLQ).build();
+    }
+
+    @Bean
+    Binding underwritingRequestedBinding() {
+        return BindingBuilder.bind(underwritingRequestedQueue())
+                .to(eventsExchange())
+                .with(UNDERWRITING_REQUESTED_ROUTING_KEY);
+    }
+
+    @Bean
+    Binding underwritingRequestedDlqBinding() {
+        return BindingBuilder.bind(underwritingRequestedDlq())
+                .to(deadLetterExchange())
+                .with(UNDERWRITING_REQUESTED_QUEUE);
     }
 }

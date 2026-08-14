@@ -72,6 +72,7 @@ flowchart TD
         workflow["workflow"]
         origination["applicant-origination"]
         verification["verification"]
+        decisioning["decisioning"]
     end
 
     app{{"platform-app (deployable)"}}
@@ -89,19 +90,24 @@ flowchart TD
     verification --> origination
     verification --> workflow
 
+    decisioning --> infrastructure
+    decisioning --> origination
+    decisioning --> verification
+
     app --> common
     app --> security
     app --> infrastructure
     app --> origination
     app --> workflow
     app --> verification
+    app --> decisioning
 ```
 
-`platform-app` is the only executable jar — one deployable hosting both REST controllers and `@RabbitListener`s, per the roadmap's modular-monolith decision. It's also the only module allowed to depend on all six others; none of the bounded-context modules depend on each other's siblings except through the edges drawn above (e.g. `verification` reaches `applicant-origination` only through `origination.api`'s `ApplicationVersionQueryService`/`ApplicationTransitionService` ports — the same "extract a port on the second real caller" pattern ADR 0007 documents for `workflow`).
+`platform-app` is the only executable jar — one deployable hosting both REST controllers and `@RabbitListener`s, per the roadmap's modular-monolith decision. It's also the only module allowed to depend on all seven others; none of the bounded-context modules depend on each other's siblings except through the edges drawn above (e.g. `verification` reaches `applicant-origination` only through `origination.api`'s `ApplicationVersionQueryService`/`ApplicationTransitionService` ports, and `decisioning` reaches both `applicant-origination` and `verification` the same way — the "extract a port on the second real caller" pattern ADR 0007 documents for `workflow`).
 
 `platform-common` and `platform-security` are exempt as ArchUnit *targets* (nothing stops another module from importing their public classes directly — `common` is a shared kernel of value types/base entities/exceptions meant to be used everywhere, and `security` is wired by the Spring framework itself via filter chain/annotations rather than imported directly). They're still bound as *callers*: `ModuleBoundaryTest` would fail if either reached into, say, `infrastructure`'s or `origination`'s internals.
 
-Not yet present: `decisioning`, `offers`, `funding`, `notifications` — Milestone 3 onward, per the roadmap's module list.
+Not yet present: `offers`, `funding`, `notifications` — later Milestone 3+ epics, per the roadmap's module list.
 
 ## Submit → verify → underwriting (async golden path)
 
@@ -152,13 +158,14 @@ sequenceDiagram
     Origination->>Workflow: validateTransition(VERIFYING, UNDERWRITING)
     Workflow-->>Origination: legal
     Origination->>DB: status=UNDERWRITING
+    Handler->>DB: insert outbox_event(underwriting.requested)
     Handler->>DB: markConsumed(consumer, eventId)
     Handler-->>Broker: ack (AcknowledgeMode.AUTO, after process() returns)
 ```
 
 Two details that otherwise require reading three separate files to piece together:
 
-- **Steps 11–26 are one `@Transactional` method** (`ApplicationSubmittedHandler.process`). If the transient-failure branch throws, everything in that range rolls back — including the `VERIFYING` transition — so a redelivered attempt safely re-validates `SUBMITTED → VERIFYING` instead of finding the aggregate already past it. The one exception is the attempt counter itself: `recordAttemptAndGetCount` runs in a separate `REQUIRES_NEW` transaction specifically so the count survives the rollback its own trigger causes.
+- **Steps 11–27 are one `@Transactional` method** (`ApplicationSubmittedHandler.process`). If the transient-failure branch throws, everything in that range rolls back — including the `VERIFYING` transition and the `underwriting.requested` outbox insert — so a redelivered attempt safely re-validates `SUBMITTED → VERIFYING` instead of finding the aggregate already past it. The one exception is the attempt counter itself: `recordAttemptAndGetCount` runs in a separate `REQUIRES_NEW` transaction specifically so the count survives the rollback its own trigger causes.
 - **The listener/handler split is deliberate**, not incidental: `@RabbitListener` (not shown as a separate lifeline above — it's a thin wrapper around `Handler`) only acks after `process()` returns, so the message can't be acked before its transaction actually commits. See ADR 0004 for why the opposite ordering was a real bug here in Epic 2.2.
 
-This is also the boundary the state diagram above flags: `Handler` never drives status past `UNDERWRITING` — decisioning (Milestone 3) picks up from there.
+This is also the boundary the state diagram above flags: `Handler` never drives status past `UNDERWRITING`. Epic 3.1's `decisioning` module now picks up from step 26 onward — its `UnderwritingRequestedHandler` consumes `underwriting.requested` in its own transaction and builds the immutable `UnderwritingSnapshot`, but doesn't drive any further status transition itself (Milestone 3's later epics do).
