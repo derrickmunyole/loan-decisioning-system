@@ -22,10 +22,15 @@ public class WorkflowTaskCreationService {
         this.workflowTaskRepository = workflowTaskRepository;
     }
 
-    public UUID createTask(WorkflowTaskType taskType, String reason, String detail, String correlationId) {
+    public UUID createTask(
+            WorkflowTaskType taskType,
+            UUID applicationId,
+            String reason,
+            String detail,
+            String correlationId) {
         WorkflowTask task =
                 workflowTaskRepository.save(
-                        new WorkflowTask(taskType, null, reason, null, detail, correlationId));
+                        new WorkflowTask(taskType, null, applicationId, reason, null, detail, correlationId));
         return task.getId();
     }
 }

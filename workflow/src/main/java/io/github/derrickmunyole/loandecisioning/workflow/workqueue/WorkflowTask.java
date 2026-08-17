@@ -30,6 +30,9 @@ public class WorkflowTask {
     @Column(name = "source_queue")
     private String sourceQueue;
 
+    @Column(name = "application_id")
+    private UUID applicationId;
+
     private String reason;
 
     private Integer attempts;
@@ -52,12 +55,14 @@ public class WorkflowTask {
     public WorkflowTask(
             WorkflowTaskType taskType,
             String sourceQueue,
+            UUID applicationId,
             String reason,
             Integer attempts,
             String detail,
             String correlationId) {
         this.taskType = taskType;
         this.sourceQueue = sourceQueue;
+        this.applicationId = applicationId;
         this.reason = reason;
         this.attempts = attempts;
         this.detail = detail;
