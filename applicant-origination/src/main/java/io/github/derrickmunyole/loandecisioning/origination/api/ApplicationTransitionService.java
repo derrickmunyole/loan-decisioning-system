@@ -1,7 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.origination.api;
 
 import io.github.derrickmunyole.loandecisioning.origination.application.Application;
-import io.github.derrickmunyole.loandecisioning.origination.application.ApplicationNotFoundException;
 import io.github.derrickmunyole.loandecisioning.origination.application.ApplicationRepository;
 import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTransitionService;

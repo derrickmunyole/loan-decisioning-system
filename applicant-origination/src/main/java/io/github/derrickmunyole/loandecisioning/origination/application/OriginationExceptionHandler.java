@@ -2,6 +2,7 @@ package io.github.derrickmunyole.loandecisioning.origination.application;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyKeyConflictException;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyKeyInProgressException;
+import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationNotFoundException;
 import io.github.derrickmunyole.loandecisioning.origination.document.DocumentStorageException;
 import io.github.derrickmunyole.loandecisioning.workflow.api.IllegalApplicationTransitionException;
 import org.springframework.dao.DataIntegrityViolationException;

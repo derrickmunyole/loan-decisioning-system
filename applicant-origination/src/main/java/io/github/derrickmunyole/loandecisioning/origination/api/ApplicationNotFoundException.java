@@ -1,4 +1,4 @@
-package io.github.derrickmunyole.loandecisioning.origination.application;
+package io.github.derrickmunyole.loandecisioning.origination.api;
 
 import java.util.UUID;
 

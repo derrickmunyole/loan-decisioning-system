@@ -4,6 +4,7 @@ import io.github.derrickmunyole.loandecisioning.infrastructure.api.AuditQuerySer
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyService;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.RequestHash;
+import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationNotFoundException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
