@@ -89,6 +89,40 @@ class DecisionEngineProviderOutageIntegrationTest {
                                         .isTrue());
     }
 
+    /**
+     * The third of the three "how a case reaches REFERRED" paths {@link DecisionEngineHandler}'s
+     * javadoc names — Epic 4.1's {@code POST /cases/{id}/decision} can't override this one, since
+     * there's no automated {@link Decision} to source snapshot/policy/scorecard/pricing versions
+     * from. It's resolved via this case's own {@code CREDIT_SCORE_PROVIDER_UNAVAILABLE} {@code
+     * workflow_task} instead (Epic 4.2).
+     */
+    @Test
+    void overridingAProviderOutageReferredCaseWithNoAutomatedDecisionIsConflict() {
+        publishStandardPolicyScorecardPricing();
+        UUID applicationId = submitApplication("300000", 24, "80000", "EMPLOYED");
+
+        String applicantToken = login("applicant", SEED_PASSWORD);
+        await().atMost(Duration.ofSeconds(20))
+                .untilAsserted(
+                        () ->
+                                assertThat(getStatus(applicantToken, applicationId))
+                                        .isEqualTo("REFERRED"));
+        assertThat(decisionRepository.findByApplicationId(applicationId)).isEmpty();
+
+        String underwriterToken = login("underwriter", SEED_PASSWORD);
+        var headers = authHeaders(underwriterToken);
+        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/cases/" + applicationId + "/decision",
+                        HttpMethod.POST,
+                        new HttpEntity<>(
+                                Map.of("outcome", "APPROVED", "reason", "Should be rejected"), headers),
+                        String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
     private void publishStandardPolicyScorecardPricing() {
         String token = login("policy_admin", SEED_PASSWORD);
 
