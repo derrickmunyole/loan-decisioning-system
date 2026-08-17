@@ -2,6 +2,7 @@ package io.github.derrickmunyole.loandecisioning.origination.application;
 
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
+import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationNotFoundException;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationSubmittedEvent;
 import io.github.derrickmunyole.loandecisioning.origination.applicant.Applicant;
 import io.github.derrickmunyole.loandecisioning.origination.applicant.ApplicantRepository;

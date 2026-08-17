@@ -53,6 +53,7 @@ class DeadLetterTaskHandler {
                 new WorkflowTask(
                         WorkflowTaskType.MESSAGE_PROCESSING_FAILURE,
                         asString(death.get("queue")),
+                        null,
                         asString(death.get("reason")),
                         asInteger(death.get("count")),
                         truncate(new String(message.getBody(), StandardCharsets.UTF_8)),
