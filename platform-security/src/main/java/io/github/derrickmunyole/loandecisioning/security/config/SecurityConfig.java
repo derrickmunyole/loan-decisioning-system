@@ -58,6 +58,8 @@ public class SecurityConfig {
                                         .hasRole("APPLICANT")
                                         .requestMatchers("/work-queue")
                                         .hasAnyRole("UNDERWRITER", "OPERATIONS_ANALYST")
+                                        .requestMatchers("/cases/**")
+                                        .hasRole("UNDERWRITER")
                                         .requestMatchers("/policies/**", "/scorecards/**", "/pricing/**")
                                         .hasRole("POLICY_ADMIN")
                                         .anyRequest()
