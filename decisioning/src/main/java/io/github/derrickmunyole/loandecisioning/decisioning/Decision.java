@@ -61,6 +61,9 @@ public class Decision {
     @Column(name = "decided_at", nullable = false, updatable = false)
     private Instant decidedAt;
 
+    @Column(name = "overrides_decision_id")
+    private UUID overridesDecisionId;
+
     protected Decision() {}
 
     public Decision(
@@ -72,7 +75,8 @@ public class Decision {
             String creditScoreModelVersion,
             ApplicationStatus outcome,
             String reasonCodesJson,
-            String actor) {
+            String actor,
+            UUID overridesDecisionId) {
         this.applicationId = applicationId;
         this.underwritingSnapshotId = underwritingSnapshotId;
         this.policyVersionId = policyVersionId;
@@ -83,5 +87,6 @@ public class Decision {
         this.reasonCodesJson = reasonCodesJson;
         this.actor = actor;
         this.decidedAt = Instant.now();
+        this.overridesDecisionId = overridesDecisionId;
     }
 }

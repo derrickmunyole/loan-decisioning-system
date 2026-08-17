@@ -212,7 +212,8 @@ class DecisionEngineHandler {
                             creditScoreModelVersion,
                             outcome,
                             reasonCodesJson,
-                            ACTOR));
+                            ACTOR,
+                            null));
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialize decision reason codes: " + reasons, e);
         }

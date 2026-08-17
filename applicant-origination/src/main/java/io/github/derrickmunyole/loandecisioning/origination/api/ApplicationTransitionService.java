@@ -9,12 +9,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Write port for modules outside {@code origination} that need to drive an {@code Application}
- * through the state machine — e.g. {@code verification}'s async consumer — without reaching into
- * the internal {@code Application} entity/{@code ApplicationRepository} directly. Joins the
- * caller's existing transaction under default ({@code REQUIRED}) propagation, so a caller that
- * calls this twice in one method (e.g. VERIFYING then, later, UNDERWRITING) and then throws still
- * rolls back both hops atomically.
+ * Read/write port for modules outside {@code origination} that need to drive or inspect an {@code
+ * Application}'s place in the state machine — e.g. {@code verification}'s async consumer, or
+ * {@code decisioning}'s {@code POST /cases/{id}/decision} (Epic 4.1), which needs {@link
+ * #currentStatus} to guard against a manual override being applied outside {@code REFERRED} — the
+ * shared transition table alone permits {@code UNDERWRITING → APPROVED/DECLINED} too, since that
+ * edge is legal for the automated engine's own use. Joins the caller's existing transaction under
+ * default ({@code REQUIRED}) propagation, so a caller that calls {@link #transitionTo} twice in
+ * one method (e.g. VERIFYING then, later, UNDERWRITING) and then throws still rolls back both hops
+ * atomically.
  */
 @Service
 public class ApplicationTransitionService {
@@ -36,5 +39,13 @@ public class ApplicationTransitionService {
                         .orElseThrow(() -> new ApplicationNotFoundException(applicationId));
         workflowTransitionService.validateTransition(application.getStatus(), newStatus);
         application.transitionTo(newStatus);
+    }
+
+    @Transactional(readOnly = true)
+    public ApplicationStatus currentStatus(UUID applicationId) {
+        return applicationRepository
+                .findById(applicationId)
+                .orElseThrow(() -> new ApplicationNotFoundException(applicationId))
+                .getStatus();
     }
 }
