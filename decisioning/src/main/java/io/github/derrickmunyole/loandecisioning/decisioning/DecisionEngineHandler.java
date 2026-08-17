@@ -34,9 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
  *       fault at all.
  *   <li>Verification evidence contains a failed check — a real, expected business outcome (the
  *       sentinel triggers in {@code SyntheticVerificationEngine} exist precisely so this path is
- *       reachable): {@code REFERRED}, with a {@code Decision} row, plus a {@code
- *       WorkflowTaskType.UNDERWRITE_CASE} task (Epic 4.1) so the case surfaces on the
- *       underwriter's {@code GET /work-queue}, not operations'.
+ *       reachable) — or the credit-score band itself maps to {@code REFERRED} per the published
+ *       {@code PolicyVersion}'s {@code bandOutcomes}: either way, {@code recordDecision} raises a
+ *       {@code WorkflowTaskType.UNDERWRITE_CASE} task (Epic 4.1) whenever it saves a {@code
+ *       REFERRED} {@code Decision}, so the case surfaces on the underwriter's {@code GET
+ *       /work-queue}, not operations', regardless of which of the two paths produced it.
  *   <li>The credit-score provider call fails (timeout, circuit open, non-2xx, connection
  *       failure) — {@code REFERRED}, no {@code Decision} row (there's no valid score/model
  *       version to record), plus an ops-visible {@code workflow_task} via the new {@code
@@ -131,12 +133,6 @@ class DecisionEngineHandler {
                     null,
                     ApplicationStatus.REFERRED,
                     List.of("Verification evidence contains a failed check; referring for manual review"));
-            workflowTaskCreationService.createTask(
-                    WorkflowTaskType.UNDERWRITE_CASE,
-                    event.applicationId(),
-                    "VERIFICATION_EVIDENCE_FAILED",
-                    "Application " + event.applicationId() + " referred for manual underwriting review",
-                    null);
             amqpDedupeService.markConsumed(CONSUMER_NAME, eventId);
             return;
         }
@@ -218,6 +214,17 @@ class DecisionEngineHandler {
             throw new IllegalStateException("Failed to serialize decision reason codes: " + reasons, e);
         }
         applicationTransitionService.transitionTo(applicationId, outcome);
+        if (outcome == ApplicationStatus.REFERRED) {
+            workflowTaskCreationService.createTask(
+                    WorkflowTaskType.UNDERWRITE_CASE,
+                    applicationId,
+                    "UNDERWRITE_CASE",
+                    "Application "
+                            + applicationId
+                            + " referred for manual underwriting review: "
+                            + String.join("; ", reasons),
+                    null);
+        }
     }
 
     private Map<String, Integer> parseBandCutoffs(String formulaConfigJson) {
