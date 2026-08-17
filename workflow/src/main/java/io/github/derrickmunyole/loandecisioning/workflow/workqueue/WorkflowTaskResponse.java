@@ -14,7 +14,10 @@ public record WorkflowTaskResponse(
         String detail,
         WorkflowTaskStatus status,
         String correlationId,
-        Instant createdAt) {
+        Instant createdAt,
+        String resolution,
+        String resolvedBy,
+        Instant resolvedAt) {
 
     static WorkflowTaskResponse from(WorkflowTask task) {
         return new WorkflowTaskResponse(
@@ -27,6 +30,9 @@ public record WorkflowTaskResponse(
                 task.getDetail(),
                 task.getStatus(),
                 task.getCorrelationId(),
-                task.getCreatedAt());
+                task.getCreatedAt(),
+                task.getResolution(),
+                task.getResolvedBy(),
+                task.getResolvedAt());
     }
 }

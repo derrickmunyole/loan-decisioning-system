@@ -58,6 +58,11 @@ public class SecurityConfig {
                                         .hasRole("APPLICANT")
                                         .requestMatchers("/work-queue")
                                         .hasAnyRole("UNDERWRITER", "OPERATIONS_ANALYST")
+                                        // Ordered before the broader /cases/** rule below —
+                                        // requestMatchers is first-match-wins, and this one
+                                        // targets a different role than the rest of /cases/**.
+                                        .requestMatchers("/work-queue/*/resolve", "/cases/*/retry-decision")
+                                        .hasRole("OPERATIONS_ANALYST")
                                         .requestMatchers("/cases/**")
                                         .hasRole("UNDERWRITER")
                                         .requestMatchers("/policies/**", "/scorecards/**", "/pricing/**")

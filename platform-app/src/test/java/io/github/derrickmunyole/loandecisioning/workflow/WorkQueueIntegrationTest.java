@@ -83,14 +83,17 @@ class WorkQueueIntegrationTest {
         assertThat(task.getCorrelationId()).isEqualTo(correlationId);
         assertThat(task.getAttempts()).isNotNull();
 
+        // Epic 4.2 role scoping: MESSAGE_PROCESSING_FAILURE is ops's queue, not the
+        // underwriter's (UNDERWRITE_CASE is) -- see WorkQueueController.
         String underwriterToken = login("underwriter", SEED_PASSWORD);
-        List<Map<String, Object>> workQueue = getWorkQueue(underwriterToken);
-        assertThat(workQueue)
+        assertThat(getWorkQueue(underwriterToken))
                 .extracting(entry -> entry.get("id"))
-                .contains(task.getId().toString());
+                .doesNotContain(task.getId().toString());
 
         String opsToken = login("operations_analyst", SEED_PASSWORD);
-        assertThat(getWorkQueue(opsToken)).isNotEmpty();
+        assertThat(getWorkQueue(opsToken))
+                .extracting(entry -> entry.get("id"))
+                .contains(task.getId().toString());
 
         String applicantToken = login("applicant", SEED_PASSWORD);
         var forbidden =
