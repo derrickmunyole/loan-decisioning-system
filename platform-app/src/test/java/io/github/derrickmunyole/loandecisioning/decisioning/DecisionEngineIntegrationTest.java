@@ -56,7 +56,20 @@ class DecisionEngineIntegrationTest {
     static GenericContainer<?> creditScoreService =
             new GenericContainer<>(
                             new ImageFromDockerfile()
-                                    .withFileFromPath(".", Paths.get("..", "credit-score-service")))
+                                    // Explicit per-file context, not the whole directory: the
+                                    // latter also picks up .venv/.pytest_cache/.ruff_cache if a
+                                    // developer has ever run this component's own tests locally,
+                                    // and ImageFromDockerfile doesn't honor .dockerignore the way
+                                    // `docker build` does -- a stray .venv symlink pointing at an
+                                    // absolute host path breaks the build-context tar entirely.
+                                    .withFileFromPath(
+                                            "Dockerfile", Paths.get("..", "credit-score-service", "Dockerfile"))
+                                    .withFileFromPath(
+                                            "pyproject.toml",
+                                            Paths.get("..", "credit-score-service", "pyproject.toml"))
+                                    .withFileFromPath(
+                                            "uv.lock", Paths.get("..", "credit-score-service", "uv.lock"))
+                                    .withFileFromPath("src", Paths.get("..", "credit-score-service", "src")))
                     .withExposedPorts(8000)
                     .waitingFor(Wait.forHttp("/docs").forStatusCode(200));
 
