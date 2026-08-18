@@ -132,7 +132,7 @@ application 1 ── 0..1 loan_account 1 ── * repayment_schedule_item
 | `POST /applications/{id}/submit` | Validate, snapshot version, start workflow |
 | `POST /applications/{id}/documents` | Create secure upload intent / document metadata |
 | `GET /applications/{id}` | Applicant-safe state and status projection |
-| `GET /applications/{id}/timeline` | Authorized decision and workflow history |
+| `GET /applications/{id}/timeline` | Role-scoped: the owning applicant gets an audit-event chronology; the four staff roles (underwriter, operations analyst, policy admin, auditor) get an aggregate of decision (outcome, reasons, version traceability), verification evidence, and audit events |
 | `POST /offers/{id}/accept` | Accept unexpired offer idempotently |
 | `GET /work-queue` | Underwriter/operations task queue, role-scoped to each role's own subset |
 | `POST /work-queue/{id}/resolve` | Operations acknowledges/closes a task; requires resolution note |
