@@ -9,5 +9,7 @@ public interface DecisionRepository extends JpaRepository<Decision, UUID> {
 
     List<Decision> findByApplicationId(UUID applicationId);
 
+    List<Decision> findByApplicationIdOrderByDecidedAtAsc(UUID applicationId);
+
     Optional<Decision> findFirstByApplicationIdOrderByDecidedAtDesc(UUID applicationId);
 }
