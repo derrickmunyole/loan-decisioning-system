@@ -63,6 +63,7 @@ class DecisionEngineHandler {
     private final CreditScoreClient creditScoreClient;
     private final ApplicationTransitionService applicationTransitionService;
     private final WorkflowTaskCreationService workflowTaskCreationService;
+    private final DecisionTransitionAuditor decisionTransitionAuditor;
     private final ObjectMapper objectMapper;
 
     DecisionEngineHandler(
@@ -75,6 +76,7 @@ class DecisionEngineHandler {
             CreditScoreClient creditScoreClient,
             ApplicationTransitionService applicationTransitionService,
             WorkflowTaskCreationService workflowTaskCreationService,
+            DecisionTransitionAuditor decisionTransitionAuditor,
             ObjectMapper objectMapper) {
         this.amqpDedupeService = amqpDedupeService;
         this.underwritingSnapshotRepository = underwritingSnapshotRepository;
@@ -85,6 +87,7 @@ class DecisionEngineHandler {
         this.creditScoreClient = creditScoreClient;
         this.applicationTransitionService = applicationTransitionService;
         this.workflowTaskCreationService = workflowTaskCreationService;
+        this.decisionTransitionAuditor = decisionTransitionAuditor;
         this.objectMapper = objectMapper;
     }
 
@@ -148,6 +151,7 @@ class DecisionEngineHandler {
                             facts.declaredEmploymentStatus());
         } catch (Exception e) {
             applicationTransitionService.transitionTo(event.applicationId(), ApplicationStatus.REFERRED);
+            decisionTransitionAuditor.recordProviderOutageReferral(event.applicationId());
             workflowTaskCreationService.createTask(
                     WorkflowTaskType.CREDIT_SCORE_PROVIDER_UNAVAILABLE,
                     event.applicationId(),
@@ -215,6 +219,7 @@ class DecisionEngineHandler {
             throw new IllegalStateException("Failed to serialize decision reason codes: " + reasons, e);
         }
         applicationTransitionService.transitionTo(applicationId, outcome);
+        decisionTransitionAuditor.recordDecisionOutcome(applicationId);
         if (outcome == ApplicationStatus.REFERRED) {
             workflowTaskCreationService.createTask(
                     WorkflowTaskType.UNDERWRITE_CASE,
