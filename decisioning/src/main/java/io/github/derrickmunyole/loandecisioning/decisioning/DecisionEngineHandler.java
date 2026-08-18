@@ -50,7 +50,8 @@ import org.springframework.transaction.annotation.Transactional;
 class DecisionEngineHandler {
 
     static final String CONSUMER_NAME = "decision-engine-listener";
-    private static final String ACTOR = "SYSTEM_SERVICE";
+    // Matches SystemServicePrincipalAspect's synthetic principal username (lowercase).
+    private static final String ACTOR = "system_service";
     private static final String FAILED_EVIDENCE_STATUS = "FAILED";
 
     private final AmqpDedupeService amqpDedupeService;
