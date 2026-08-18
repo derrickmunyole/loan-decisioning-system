@@ -134,8 +134,10 @@ application 1 ── 0..1 loan_account 1 ── * repayment_schedule_item
 | `GET /applications/{id}` | Applicant-safe state and status projection |
 | `GET /applications/{id}/timeline` | Authorized decision and workflow history |
 | `POST /offers/{id}/accept` | Accept unexpired offer idempotently |
-| `GET /work-queue` | Underwriter/operations task queue |
+| `GET /work-queue` | Underwriter/operations task queue, role-scoped to each role's own subset |
+| `POST /work-queue/{id}/resolve` | Operations acknowledges/closes a task; requires resolution note |
 | `POST /cases/{id}/decision` | Underwriter decision or override; requires reason code |
+| `POST /cases/{id}/retry-decision` | Operations retries a case referred by a credit-score provider outage |
 | `POST /policies` and `POST /policies/{id}/publish` | Create and publish an immutable policy version |
 | `POST /scorecards` and `POST /scorecards/{id}/publish` | Create and publish an immutable scorecard version |
 | `POST /pricing` and `POST /pricing/{id}/publish` | Create and publish an immutable pricing version |

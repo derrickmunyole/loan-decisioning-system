@@ -5,6 +5,8 @@ import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationTransitionService;
 import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import io.github.derrickmunyole.loandecisioning.workflow.api.IllegalApplicationTransitionException;
+import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskResolutionService;
+import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskType;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -22,14 +24,17 @@ class CaseDecisionCommandService {
 
     private final DecisionRepository decisionRepository;
     private final ApplicationTransitionService applicationTransitionService;
+    private final WorkflowTaskResolutionService workflowTaskResolutionService;
     private final ObjectMapper objectMapper;
 
     CaseDecisionCommandService(
             DecisionRepository decisionRepository,
             ApplicationTransitionService applicationTransitionService,
+            WorkflowTaskResolutionService workflowTaskResolutionService,
             ObjectMapper objectMapper) {
         this.decisionRepository = decisionRepository;
         this.applicationTransitionService = applicationTransitionService;
+        this.workflowTaskResolutionService = workflowTaskResolutionService;
         this.objectMapper = objectMapper;
     }
 
@@ -46,6 +51,7 @@ class CaseDecisionCommandService {
 
         if (request.outcome() == ApplicationStatus.UNDERWRITING) {
             applicationTransitionService.transitionTo(applicationId, ApplicationStatus.UNDERWRITING);
+            resolveOpenUnderwriteCaseTask(applicationId, actor, request.outcome());
             return CaseDecisionResponse.evidenceRequested(applicationId, request.reason(), actor);
         }
 
@@ -68,7 +74,24 @@ class CaseDecisionCommandService {
                                 actor,
                                 automated.getId()));
         applicationTransitionService.transitionTo(applicationId, request.outcome());
+        resolveOpenUnderwriteCaseTask(applicationId, actor, request.outcome());
         return CaseDecisionResponse.fromOverride(override, request.reason());
+    }
+
+    /**
+     * No-op if there's no open {@code UNDERWRITE_CASE} task for this application. That's the
+     * normal case for a credit-score-provider-outage {@code REFERRED} (Epic 3.4 raises {@code
+     * CREDIT_SCORE_PROVIDER_UNAVAILABLE} there instead) reached via this method's {@code
+     * UNDERWRITING} branch — the only one of the three outcomes that doesn't require an automated
+     * {@link Decision} to already exist.
+     */
+    private void resolveOpenUnderwriteCaseTask(UUID applicationId, String actor, ApplicationStatus outcome) {
+        workflowTaskResolutionService
+                .findOpenTask(applicationId, WorkflowTaskType.UNDERWRITE_CASE)
+                .ifPresent(
+                        task ->
+                                workflowTaskResolutionService.markResolved(
+                                        task.id(), "Resolved via POST /cases/{id}/decision (" + outcome + ")", actor));
     }
 
     private String writeReasonCodesJson(String reason) {

@@ -1,23 +1,21 @@
-package io.github.derrickmunyole.loandecisioning.workflow;
+package io.github.derrickmunyole.loandecisioning.decisioning;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-import io.github.derrickmunyole.loandecisioning.infrastructure.messaging.RabbitTopologyConfig;
+import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginRequest;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginResponse;
-import io.github.derrickmunyole.loandecisioning.workflow.workqueue.WorkflowTask;
-import io.github.derrickmunyole.loandecisioning.workflow.workqueue.WorkflowTaskRepository;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.core.MessageBuilder;
-import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -36,22 +34,29 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Exercises Epic 2.2's done-criterion end to end: a forced consumer failure surfaces as a
- * work-queue item after retries genuinely exhaust — no test-only shortcut in production code, the
- * malformed message is published straight onto the real queue and left to Spring's real
- * retry+backoff and RabbitMQ's real dead-lettering.
+ * Exercises Epic 4.2's {@code POST /cases/{id}/retry-decision} done-criterion: a credit-score
+ * provider outage is recoverable by an operations analyst via API. Uses WireMock's scenario/state
+ * mechanism (already a dependency from Epic 3.5's {@link CreditScoreClientWireMockTest}) rather
+ * than Testcontainers pause/unpause — a stub can fail on the first request and switch to
+ * succeeding from the second, which a real container can't do without external orchestration
+ * mid-test.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class WorkQueueIntegrationTest {
+class RetryDecisionIntegrationTest {
 
     private static final String SEED_PASSWORD = "TestPassword123!";
+    private static final String OUTAGE_THEN_RECOVERY = "outage-then-recovery";
 
     @Container @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
 
     @Container @ServiceConnection
     static RabbitMQContainer rabbitmq = new RabbitMQContainer("rabbitmq:3.13-management");
+
+    @RegisterExtension
+    static WireMockExtension creditScoreService =
+            WireMockExtension.newInstance().options(wireMockConfig().dynamicPort()).build();
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -60,78 +65,40 @@ class WorkQueueIntegrationTest {
                 () -> "test-only-jwt-signing-secret-at-least-32-bytes-long");
         registry.add("app.security.seed-users-password", () -> SEED_PASSWORD);
         registry.add("app.outbox.relay-interval", () -> "200");
+        registry.add("app.credit-score.base-url", () -> creditScoreService.baseUrl());
     }
 
     @Autowired private TestRestTemplate restTemplate;
-    @Autowired private RabbitTemplate rabbitTemplate;
-    @Autowired private WorkflowTaskRepository workflowTaskRepository;
+    @Autowired private DecisionRepository decisionRepository;
 
     @Test
-    void exhaustedRetriesOnAMalformedMessageSurfaceAsAWorkQueueItem() {
-        var task = raiseAMessageProcessingFailureTask();
-
-        assertThat(task.getTaskType().name()).isEqualTo("MESSAGE_PROCESSING_FAILURE");
-        assertThat(task.getSourceQueue())
-                .isEqualTo(RabbitTopologyConfig.NOTIFICATION_REQUESTED_QUEUE);
-        assertThat(task.getStatus().name()).isEqualTo("OPEN");
-        assertThat(task.getCorrelationId()).isNotNull();
-        assertThat(task.getAttempts()).isNotNull();
-
-        // Epic 4.2 role scoping: MESSAGE_PROCESSING_FAILURE is ops's queue, not the
-        // underwriter's (UNDERWRITE_CASE is) -- see WorkQueueController.
-        String underwriterToken = login("underwriter", SEED_PASSWORD);
-        assertThat(getWorkQueue(underwriterToken))
-                .extracting(entry -> entry.get("id"))
-                .doesNotContain(task.getId().toString());
-
-        String opsToken = login("operations_analyst", SEED_PASSWORD);
-        assertThat(getWorkQueue(opsToken))
-                .extracting(entry -> entry.get("id"))
-                .contains(task.getId().toString());
+    void retryingAfterTheProviderRecoversResumesTheDecisionAndResolvesTheTask() {
+        stubScoreEndpointToFailOnceThenSucceed();
+        publishStandardPolicyScorecardPricing();
+        UUID applicationId = submitApplication("300000", 24, "80000", "EMPLOYED");
 
         String applicantToken = login("applicant", SEED_PASSWORD);
-        var forbidden =
-                restTemplate.exchange(
-                        "/work-queue",
-                        HttpMethod.GET,
-                        new HttpEntity<>(authHeaders(applicantToken)),
-                        String.class);
-        assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void resolvingATaskMarksItResolvedAndIsIdempotent() {
-        var task = raiseAMessageProcessingFailureTask();
+        await().atMost(Duration.ofSeconds(20))
+                .untilAsserted(
+                        () -> assertThat(getStatus(applicantToken, applicationId)).isEqualTo("REFERRED"));
+        assertThat(decisionRepository.findByApplicationId(applicationId)).isEmpty();
 
         String opsToken = login("operations_analyst", SEED_PASSWORD);
-        Map<String, Object> resolved = resolve(opsToken, task.getId(), "Inspected manually");
-        assertThat(resolved.get("status")).isEqualTo("RESOLVED");
-        assertThat(resolved.get("resolvedBy")).isEqualTo("operations_analyst");
-        assertThat(resolved.get("resolution")).isEqualTo("Inspected manually");
+        Map<String, Object> retryResponse = retry(opsToken, applicationId, UUID.randomUUID().toString());
+        assertThat(retryResponse.get("status")).isEqualTo("UNDERWRITING");
 
-        Map<String, Object> secondAttempt =
-                resolve(opsToken, task.getId(), "Different note -- should be ignored");
-        assertThat(secondAttempt.get("resolution")).isEqualTo("Inspected manually");
+        await().atMost(Duration.ofSeconds(20))
+                .untilAsserted(
+                        () -> assertThat(decisionRepository.findByApplicationId(applicationId)).hasSize(1));
+        Decision decision = decisionRepository.findByApplicationId(applicationId).get(0);
+        assertThat(decision.getCreditScoreModelVersion()).isEqualTo("wiremock-recovery-v1");
     }
 
     @Test
-    void underwriterCannotResolveAnOpsTask() {
-        var task = raiseAMessageProcessingFailureTask();
-
-        String underwriterToken = login("underwriter", SEED_PASSWORD);
-        ResponseEntity<String> response = resolveRaw(underwriterToken, task.getId(), "Should be rejected");
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void resolvingAnUnknownTaskIsNotFound() {
-        String opsToken = login("operations_analyst", SEED_PASSWORD);
-        ResponseEntity<String> response = resolveRaw(opsToken, UUID.randomUUID(), "Should be rejected");
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void opsCannotResolveAnUnderwriteCaseTaskEvenByNamingItDirectly() {
+    void retryingAReferredCaseWithNoOpenProviderOutageTaskIsNotFound() {
+        // REFERRED via the verification-failure short-circuit -- an automated Decision exists,
+        // but no CREDIT_SCORE_PROVIDER_UNAVAILABLE task, since the credit-score call never
+        // happens on this path (DecisionEngineHandler returns before reaching it).
         publishStandardPolicyScorecardPricing();
         UUID applicationId = submitIdentityMismatchApplication();
 
@@ -140,54 +107,64 @@ class WorkQueueIntegrationTest {
                 .untilAsserted(
                         () -> assertThat(getStatus(applicantToken, applicationId)).isEqualTo("REFERRED"));
 
-        var underwriteCaseTask =
-                workflowTaskRepository.findAllByOrderByCreatedAtDesc().stream()
-                        .filter(t -> applicationId.equals(t.getApplicationId()))
-                        .findFirst()
-                        .orElseThrow();
-
         String opsToken = login("operations_analyst", SEED_PASSWORD);
+        ResponseEntity<String> response = retryRaw(opsToken, applicationId, UUID.randomUUID().toString());
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void nonOperationsAnalystIsForbidden() {
+        String underwriterToken = login("underwriter", SEED_PASSWORD);
         ResponseEntity<String> response =
-                resolveRaw(opsToken, underwriteCaseTask.getId(), "Should be rejected");
+                retryRaw(underwriterToken, UUID.randomUUID(), UUID.randomUUID().toString());
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    private WorkflowTask raiseAMessageProcessingFailureTask() {
-        UUID eventId = UUID.randomUUID();
-        String correlationId = UUID.randomUUID().toString();
-        publishMalformedNotificationRequested(eventId, correlationId);
-
-        await().atMost(Duration.ofSeconds(20))
-                .untilAsserted(
-                        () ->
-                                assertThat(
-                                                workflowTaskRepository.findAllByOrderByCreatedAtDesc().stream()
-                                                        .anyMatch(t -> correlationId.equals(t.getCorrelationId())))
-                                        .isTrue());
-        return workflowTaskRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(t -> correlationId.equals(t.getCorrelationId()))
-                .findFirst()
-                .orElseThrow();
+    private void stubScoreEndpointToFailOnceThenSucceed() {
+        creditScoreService.stubFor(
+                post(urlEqualTo("/score"))
+                        .inScenario(OUTAGE_THEN_RECOVERY)
+                        .whenScenarioStateIs(Scenario.STARTED)
+                        .willReturn(aResponse().withStatus(500).withBody("simulated outage"))
+                        .willSetStateTo("RECOVERED"));
+        creditScoreService.stubFor(
+                post(urlEqualTo("/score"))
+                        .inScenario(OUTAGE_THEN_RECOVERY)
+                        .whenScenarioStateIs("RECOVERED")
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                """
+                                                {"score": 782, "band": "VERY_GOOD", "modelVersion": "wiremock-recovery-v1", "reasonContributions": []}
+                                                """)));
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> resolve(String token, UUID taskId, String resolution) {
+    private Map<String, Object> retry(String token, UUID applicationId, String idempotencyKey) {
         ResponseEntity<Map<String, Object>> response =
                 restTemplate.exchange(
-                        "/work-queue/" + taskId + "/resolve",
+                        "/cases/" + applicationId + "/retry-decision",
                         HttpMethod.POST,
-                        new HttpEntity<>(Map.of("resolution", resolution), authHeaders(token)),
+                        new HttpEntity<>(headersWithIdempotencyKey(token, idempotencyKey)),
                         new ParameterizedTypeReference<>() {});
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         return response.getBody();
     }
 
-    private ResponseEntity<String> resolveRaw(String token, UUID taskId, String resolution) {
+    private ResponseEntity<String> retryRaw(String token, UUID applicationId, String idempotencyKey) {
         return restTemplate.exchange(
-                "/work-queue/" + taskId + "/resolve",
+                "/cases/" + applicationId + "/retry-decision",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of("resolution", resolution), authHeaders(token)),
+                new HttpEntity<>(headersWithIdempotencyKey(token, idempotencyKey)),
                 String.class);
+    }
+
+    private HttpHeaders headersWithIdempotencyKey(String token, String idempotencyKey) {
+        HttpHeaders headers = authHeaders(token);
+        headers.set("Idempotency-Key", idempotencyKey);
+        return headers;
     }
 
     private void publishStandardPolicyScorecardPricing() {
@@ -239,9 +216,11 @@ class WorkQueueIntegrationTest {
         assertThat(published.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
-    /** Reaches REFERRED via the verification-failure short-circuit, so it never needs a working
-     * credit-score service -- this test class deliberately has no such container. */
-    private UUID submitIdentityMismatchApplication() {
+    private UUID submitApplication(
+            String requestedAmountKes,
+            int requestedTermMonths,
+            String declaredMonthlyIncomeKes,
+            String declaredEmploymentStatus) {
         String token = login("applicant", SEED_PASSWORD);
 
         var createHeaders = authHeaders(token);
@@ -251,6 +230,53 @@ class WorkQueueIntegrationTest {
                         "fullName", "Test Applicant",
                         "email", "applicant@example.com",
                         "phone", "+254700000000");
+        ResponseEntity<Map<String, Object>> created =
+                restTemplate.exchange(
+                        "/applications",
+                        HttpMethod.POST,
+                        new HttpEntity<>(createBody, createHeaders),
+                        new ParameterizedTypeReference<>() {});
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        UUID applicationId = UUID.fromString((String) created.getBody().get("id"));
+
+        Map<String, Object> patchBody =
+                Map.of(
+                        "requestedAmountKes", requestedAmountKes,
+                        "requestedTermMonths", requestedTermMonths,
+                        "declaredMonthlyIncomeKes", declaredMonthlyIncomeKes,
+                        "declaredEmploymentStatus", declaredEmploymentStatus,
+                        "declaredEmployerName", "Acme Ltd");
+        ResponseEntity<Map<String, Object>> patched =
+                restTemplate.exchange(
+                        "/applications/" + applicationId,
+                        HttpMethod.PATCH,
+                        new HttpEntity<>(patchBody, authHeaders(token)),
+                        new ParameterizedTypeReference<>() {});
+        assertThat(patched.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        var submitHeaders = authHeaders(token);
+        submitHeaders.set("Idempotency-Key", UUID.randomUUID().toString());
+        ResponseEntity<Map<String, Object>> submitted =
+                restTemplate.exchange(
+                        "/applications/" + applicationId + "/submit",
+                        HttpMethod.POST,
+                        new HttpEntity<>(Map.of("consentAccepted", true), submitHeaders),
+                        new ParameterizedTypeReference<>() {});
+        assertThat(submitted.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        return applicationId;
+    }
+
+    private UUID submitIdentityMismatchApplication() {
+        String token = login("applicant", SEED_PASSWORD);
+
+        var createHeaders = authHeaders(token);
+        createHeaders.set("Idempotency-Key", UUID.randomUUID().toString());
+        Map<String, String> createBody =
+                Map.of(
+                        "fullName", "Identity Mismatch Applicant",
+                        "email", "mismatch@example.com",
+                        "phone", "+254700000002");
         ResponseEntity<Map<String, Object>> created =
                 restTemplate.exchange(
                         "/applications",
@@ -297,30 +323,6 @@ class WorkQueueIntegrationTest {
                         new ParameterizedTypeReference<>() {});
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         return (String) response.getBody().get("status");
-    }
-
-    private void publishMalformedNotificationRequested(UUID eventId, String correlationId) {
-        Message message =
-                MessageBuilder.withBody("{ not valid json".getBytes(StandardCharsets.UTF_8))
-                        .setContentType(MessageProperties.CONTENT_TYPE_JSON)
-                        .setHeader("eventId", eventId.toString())
-                        .setHeader("correlationId", correlationId)
-                        .build();
-        rabbitTemplate.send(
-                RabbitTopologyConfig.EVENTS_EXCHANGE,
-                RabbitTopologyConfig.NOTIFICATION_REQUESTED_ROUTING_KEY,
-                message);
-    }
-
-    private List<Map<String, Object>> getWorkQueue(String token) {
-        ResponseEntity<List<Map<String, Object>>> response =
-                restTemplate.exchange(
-                        "/work-queue",
-                        HttpMethod.GET,
-                        new HttpEntity<>(authHeaders(token)),
-                        new ParameterizedTypeReference<>() {});
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        return response.getBody();
     }
 
     private String login(String username, String password) {

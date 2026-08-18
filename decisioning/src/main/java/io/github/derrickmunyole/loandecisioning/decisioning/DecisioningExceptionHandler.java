@@ -10,7 +10,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackages = "io.github.derrickmunyole.loandecisioning.decisioning")
 class DecisioningExceptionHandler {
 
-    @ExceptionHandler({VersionNotFoundException.class, ApplicationNotFoundException.class})
+    @ExceptionHandler({
+        VersionNotFoundException.class,
+        ApplicationNotFoundException.class,
+        NoRetryableProviderOutageTaskException.class
+    })
     @ResponseStatus(HttpStatus.NOT_FOUND)
     String handleNotFound(RuntimeException e) {
         return e.getMessage();
