@@ -3,17 +3,16 @@ package io.github.derrickmunyole.loandecisioning.decisioning;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEvent;
-import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEventRepository;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginRequest;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginResponse;
-import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskType;
-import io.github.derrickmunyole.loandecisioning.workflow.workqueue.WorkflowTaskRepository;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -26,21 +25,25 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * The other half of Epic 3.4's done-criterion: a forced credit-score outage never produces a
- * silent or wrong decision. No real {@code credit-score-service} container here — {@code
- * app.credit-score.base-url} points at the RFC 2606 {@code .invalid} TLD, guaranteeing an
- * immediate, deterministic DNS failure rather than depending on which local ports happen to be
- * free.
+ * Exercises Epic 4.3's done-criterion: {@code GET /applications/{id}/timeline} satisfies blueprint
+ * §11's "link to decision version, reasons, evidence references, event timeline, and audit
+ * history" for all four staff roles, while the applicant keeps the pre-4.3 narrow response. Uses
+ * the real {@code credit-score-service} image (same pattern as {@link CaseDecisionIntegrationTest})
+ * so there's a real {@link Decision}, real verification evidence, and a real automated-transition
+ * audit trail to assert against.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class DecisionEngineProviderOutageIntegrationTest {
+class ApplicationTimelineIntegrationTest {
 
     private static final String SEED_PASSWORD = "TestPassword123!";
 
@@ -50,6 +53,21 @@ class DecisionEngineProviderOutageIntegrationTest {
     @Container @ServiceConnection
     static RabbitMQContainer rabbitmq = new RabbitMQContainer("rabbitmq:3.13-management");
 
+    @Container
+    static GenericContainer<?> creditScoreService =
+            new GenericContainer<>(
+                            new ImageFromDockerfile()
+                                    .withFileFromPath(
+                                            "Dockerfile", Paths.get("..", "credit-score-service", "Dockerfile"))
+                                    .withFileFromPath(
+                                            "pyproject.toml",
+                                            Paths.get("..", "credit-score-service", "pyproject.toml"))
+                                    .withFileFromPath(
+                                            "uv.lock", Paths.get("..", "credit-score-service", "uv.lock"))
+                                    .withFileFromPath("src", Paths.get("..", "credit-score-service", "src")))
+                    .withExposedPorts(8000)
+                    .waitingFor(Wait.forHttp("/docs").forStatusCode(200));
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add(
@@ -57,84 +75,107 @@ class DecisionEngineProviderOutageIntegrationTest {
                 () -> "test-only-jwt-signing-secret-at-least-32-bytes-long");
         registry.add("app.security.seed-users-password", () -> SEED_PASSWORD);
         registry.add("app.outbox.relay-interval", () -> "200");
-        registry.add("app.credit-score.base-url", () -> "http://credit-score-service.invalid:8000");
-        registry.add("app.credit-score.timeout", () -> "PT1S");
+        registry.add(
+                "app.credit-score.base-url",
+                () ->
+                        "http://"
+                                + creditScoreService.getHost()
+                                + ":"
+                                + creditScoreService.getMappedPort(8000));
     }
 
     @Autowired private TestRestTemplate restTemplate;
-    @Autowired private DecisionRepository decisionRepository;
-    @Autowired private WorkflowTaskRepository workflowTaskRepository;
-    @Autowired private AuditEventRepository auditEventRepository;
 
-    @Test
-    void unreachableProviderReferesTheApplicationAndRaisesAnOpsTaskWithoutARecordedDecision() {
+    @ParameterizedTest
+    @ValueSource(strings = {"underwriter", "operations_analyst", "policy_admin", "auditor"})
+    void staffRoleSeesTheAggregateTimelineWithDecisionEvidenceAndEvents(String username) {
         publishStandardPolicyScorecardPricing();
-        UUID applicationId = submitApplication("300000", 24, "80000", "EMPLOYED");
+        UUID applicationId = submitFairBandApplication();
+        awaitStatus(applicationId, "REFERRED");
 
-        String applicantToken = login("applicant", SEED_PASSWORD);
-        await().atMost(Duration.ofSeconds(20))
-                .untilAsserted(
-                        () ->
-                                assertThat(getStatus(applicantToken, applicationId))
-                                        .isEqualTo("REFERRED"));
+        String token = login(username, SEED_PASSWORD);
+        Map<String, Object> body = timeline(token, applicationId);
 
-        assertThat(decisionRepository.findByApplicationId(applicationId)).isEmpty();
+        assertThat(body).containsKey("decisions");
+        assertThat(body).containsKey("evidence");
+        assertThat(body).containsKey("events");
 
-        await().atMost(Duration.ofSeconds(5))
-                .untilAsserted(
-                        () ->
-                                assertThat(
-                                                workflowTaskRepository.findAllByOrderByCreatedAtDesc().stream()
-                                                        .anyMatch(
-                                                                task ->
-                                                                        task.getTaskType()
-                                                                                == WorkflowTaskType
-                                                                                        .CREDIT_SCORE_PROVIDER_UNAVAILABLE))
-                                        .isTrue());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> decisions = (List<Map<String, Object>>) body.get("decisions");
+        assertThat(decisions).hasSize(1);
+        assertThat(decisions.get(0).get("outcome")).isEqualTo("REFERRED");
+        assertThat(decisions.get(0).get("underwritingSnapshotId")).isNotNull();
+        assertThat(decisions.get(0).get("policyVersionId")).isNotNull();
+        assertThat(decisions.get(0).get("scorecardVersionId")).isNotNull();
+        assertThat(decisions.get(0).get("pricingVersionId")).isNotNull();
 
-        List<AuditEvent> auditEvents =
-                auditEventRepository.findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
-                        "Application", applicationId.toString());
-        assertThat(auditEvents)
-                .filteredOn(e -> e.getAction().equals("CREDIT_SCORE_PROVIDER_OUTAGE_REFERRED"))
-                .hasSize(1)
-                .allSatisfy(e -> assertThat(e.getActor()).isEqualTo("system_service"));
-        assertThat(auditEvents)
-                .noneMatch(e -> e.getAction().equals("AUTOMATED_DECISION_RECORDED"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> evidence = (List<Map<String, Object>>) body.get("evidence");
+        assertThat(evidence)
+                .extracting(e -> e.get("type"))
+                .containsExactlyInAnyOrder("IDENTITY", "INCOME");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> events = (List<Map<String, Object>>) body.get("events");
+        assertThat(events)
+                .extracting(e -> e.get("action"))
+                .contains(
+                        "APPLICATION_VERIFICATION_STARTED",
+                        "APPLICATION_VERIFICATION_COMPLETED",
+                        "AUTOMATED_DECISION_RECORDED");
     }
 
-    /**
-     * The third of the three "how a case reaches REFERRED" paths {@link DecisionEngineHandler}'s
-     * javadoc names — Epic 4.1's {@code POST /cases/{id}/decision} can't override this one, since
-     * there's no automated {@link Decision} to source snapshot/policy/scorecard/pricing versions
-     * from. It's resolved via this case's own {@code CREDIT_SCORE_PROVIDER_UNAVAILABLE} {@code
-     * workflow_task} instead (Epic 4.2).
-     */
     @Test
-    void overridingAProviderOutageReferredCaseWithNoAutomatedDecisionIsConflict() {
+    void owningApplicantStillGetsTheNarrowEventOnlyView() {
         publishStandardPolicyScorecardPricing();
-        UUID applicationId = submitApplication("300000", 24, "80000", "EMPLOYED");
+        UUID applicationId = submitFairBandApplication();
+        awaitStatus(applicationId, "REFERRED");
 
-        String applicantToken = login("applicant", SEED_PASSWORD);
-        await().atMost(Duration.ofSeconds(20))
-                .untilAsserted(
-                        () ->
-                                assertThat(getStatus(applicantToken, applicationId))
-                                        .isEqualTo("REFERRED"));
-        assertThat(decisionRepository.findByApplicationId(applicationId)).isEmpty();
+        String token = login("applicant", SEED_PASSWORD);
+        ResponseEntity<List<Map<String, Object>>> response =
+                restTemplate.exchange(
+                        "/applications/" + applicationId + "/timeline",
+                        HttpMethod.GET,
+                        new HttpEntity<>(authHeaders(token)),
+                        new ParameterizedTypeReference<>() {});
 
-        String underwriterToken = login("underwriter", SEED_PASSWORD);
-        var headers = authHeaders(underwriterToken);
-        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<Map<String, Object>> events = response.getBody();
+        assertThat(events).isNotEmpty();
+        assertThat(events.get(0)).containsKeys("actor", "action", "occurredAt");
+        assertThat(events.get(0)).doesNotContainKey("decisions");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"underwriter", "operations_analyst", "policy_admin", "auditor"})
+    void unknownApplicationTimelineIsNotFoundForStaff(String username) {
+        String token = login(username, SEED_PASSWORD);
         ResponseEntity<String> response =
                 restTemplate.exchange(
-                        "/cases/" + applicationId + "/decision",
-                        HttpMethod.POST,
-                        new HttpEntity<>(
-                                Map.of("outcome", "APPROVED", "reason", "Should be rejected"), headers),
+                        "/applications/" + UUID.randomUUID() + "/timeline",
+                        HttpMethod.GET,
+                        new HttpEntity<>(authHeaders(token)),
                         String.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    private Map<String, Object> timeline(String token, UUID applicationId) {
+        ResponseEntity<Map<String, Object>> response =
+                restTemplate.exchange(
+                        "/applications/" + applicationId + "/timeline",
+                        HttpMethod.GET,
+                        new HttpEntity<>(authHeaders(token)),
+                        new ParameterizedTypeReference<>() {});
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        return response.getBody();
+    }
+
+    private void awaitStatus(UUID applicationId, String expectedStatus) {
+        String token = login("applicant", SEED_PASSWORD);
+        await().atMost(Duration.ofSeconds(20))
+                .untilAsserted(
+                        () -> assertThat(getStatus(token, applicationId)).isEqualTo(expectedStatus));
     }
 
     private void publishStandardPolicyScorecardPricing() {
@@ -186,11 +227,8 @@ class DecisionEngineProviderOutageIntegrationTest {
         assertThat(published.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
-    private UUID submitApplication(
-            String requestedAmountKes,
-            int requestedTermMonths,
-            String declaredMonthlyIncomeKes,
-            String declaredEmploymentStatus) {
+    /** Same fixture as {@code DecisionEngineIntegrationTest.fairBandIsReferred}. */
+    private UUID submitFairBandApplication() {
         String token = login("applicant", SEED_PASSWORD);
 
         var createHeaders = authHeaders(token);
@@ -211,10 +249,10 @@ class DecisionEngineProviderOutageIntegrationTest {
 
         Map<String, Object> patchBody =
                 Map.of(
-                        "requestedAmountKes", requestedAmountKes,
-                        "requestedTermMonths", requestedTermMonths,
-                        "declaredMonthlyIncomeKes", declaredMonthlyIncomeKes,
-                        "declaredEmploymentStatus", declaredEmploymentStatus,
+                        "requestedAmountKes", "360000",
+                        "requestedTermMonths", 12,
+                        "declaredMonthlyIncomeKes", "100000",
+                        "declaredEmploymentStatus", "EMPLOYED",
                         "declaredEmployerName", "Acme Ltd");
         ResponseEntity<Map<String, Object>> patched =
                 restTemplate.exchange(

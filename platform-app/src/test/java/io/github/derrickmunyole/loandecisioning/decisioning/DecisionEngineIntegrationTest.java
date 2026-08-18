@@ -3,6 +3,8 @@ package io.github.derrickmunyole.loandecisioning.decisioning;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEvent;
+import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEventRepository;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginRequest;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginResponse;
 import java.nio.file.Paths;
@@ -91,6 +93,7 @@ class DecisionEngineIntegrationTest {
 
     @Autowired private TestRestTemplate restTemplate;
     @Autowired private DecisionRepository decisionRepository;
+    @Autowired private AuditEventRepository auditEventRepository;
 
     @Test
     void excellentBandIsApproved() {
@@ -154,6 +157,14 @@ class DecisionEngineIntegrationTest {
         List<Decision> decisions = decisionRepository.findByApplicationId(applicationId);
         assertThat(decisions).hasSize(1);
         assertThat(decisions.get(0).getOutcome().name()).isEqualTo(expectedOutcome);
+
+        List<AuditEvent> auditEvents =
+                auditEventRepository.findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
+                        "Application", applicationId.toString());
+        assertThat(auditEvents)
+                .filteredOn(e -> e.getAction().equals("AUTOMATED_DECISION_RECORDED"))
+                .hasSize(1)
+                .allSatisfy(e -> assertThat(e.getActor()).isEqualTo("system_service"));
     }
 
     private void publishStandardPolicyScorecardPricing() {

@@ -3,6 +3,8 @@ package io.github.derrickmunyole.loandecisioning.verification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEvent;
+import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEventRepository;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginRequest;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginResponse;
 import java.time.Duration;
@@ -57,6 +59,7 @@ class VerificationIntegrationTest {
 
     @Autowired private TestRestTemplate restTemplate;
     @Autowired private VerificationCaseRepository verificationCaseRepository;
+    @Autowired private AuditEventRepository auditEventRepository;
 
     @Test
     void normalApplicationAutoProgressesToUnderwritingWithPassedChecks() {
@@ -71,6 +74,14 @@ class VerificationIntegrationTest {
         List<VerificationCase> cases = verificationCaseRepository.findByApplicationIdOrderByCreatedAtAsc(applicationId);
         assertThat(cases).hasSize(2);
         assertThat(cases).allSatisfy(c -> assertThat(c.getStatus()).isEqualTo(VerificationStatus.PASSED));
+
+        List<AuditEvent> auditEvents = applicationAuditEvents(applicationId);
+        assertThat(auditEvents)
+                .extracting(AuditEvent::getAction)
+                .contains("APPLICATION_VERIFICATION_STARTED", "APPLICATION_VERIFICATION_COMPLETED");
+        assertThat(auditEvents)
+                .filteredOn(e -> e.getAction().startsWith("APPLICATION_VERIFICATION"))
+                .allSatisfy(e -> assertThat(e.getActor()).isEqualTo("system_service"));
     }
 
     @Test
@@ -106,6 +117,23 @@ class VerificationIntegrationTest {
         List<VerificationCase> cases = verificationCaseRepository.findByApplicationIdOrderByCreatedAtAsc(applicationId);
         assertThat(cases).hasSize(2);
         assertThat(cases).allSatisfy(c -> assertThat(c.getStatus()).isEqualTo(VerificationStatus.PASSED));
+
+        // The first delivery throws SimulatedTransientVerificationFailureException after the
+        // SUBMITTED->VERIFYING hop (and its audit write) already happened in that attempt's
+        // transaction -- proving the audit row rolled back with the rest of the attempt is the
+        // whole point of this assertion, not just that the retry eventually succeeds.
+        List<AuditEvent> auditEvents = applicationAuditEvents(applicationId);
+        assertThat(auditEvents)
+                .filteredOn(e -> e.getAction().equals("APPLICATION_VERIFICATION_STARTED"))
+                .hasSize(1);
+        assertThat(auditEvents)
+                .filteredOn(e -> e.getAction().equals("APPLICATION_VERIFICATION_COMPLETED"))
+                .hasSize(1);
+    }
+
+    private List<AuditEvent> applicationAuditEvents(UUID applicationId) {
+        return auditEventRepository.findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
+                "Application", applicationId.toString());
     }
 
     private UUID createApplication(String token) {

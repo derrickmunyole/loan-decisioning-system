@@ -46,6 +46,7 @@ class ApplicationSubmittedHandler {
     private final VerificationCaseRepository verificationCaseRepository;
     private final SyntheticVerificationEngine syntheticVerificationEngine;
     private final OutboxEventPublisher outboxEventPublisher;
+    private final VerificationTransitionAuditor verificationTransitionAuditor;
     private final ObjectMapper objectMapper;
 
     ApplicationSubmittedHandler(
@@ -56,6 +57,7 @@ class ApplicationSubmittedHandler {
             VerificationCaseRepository verificationCaseRepository,
             SyntheticVerificationEngine syntheticVerificationEngine,
             OutboxEventPublisher outboxEventPublisher,
+            VerificationTransitionAuditor verificationTransitionAuditor,
             ObjectMapper objectMapper) {
         this.amqpDedupeService = amqpDedupeService;
         this.applicationTransitionService = applicationTransitionService;
@@ -64,6 +66,7 @@ class ApplicationSubmittedHandler {
         this.verificationCaseRepository = verificationCaseRepository;
         this.syntheticVerificationEngine = syntheticVerificationEngine;
         this.outboxEventPublisher = outboxEventPublisher;
+        this.verificationTransitionAuditor = verificationTransitionAuditor;
         this.objectMapper = objectMapper;
     }
 
@@ -78,6 +81,7 @@ class ApplicationSubmittedHandler {
                 objectMapper.readValue(message.getBody(), ApplicationSubmittedEvent.class);
 
         applicationTransitionService.transitionTo(event.applicationId(), ApplicationStatus.VERIFYING);
+        verificationTransitionAuditor.recordVerificationStarted(event.applicationId());
 
         ApplicationVersionView version =
                 applicationVersionQueryService
@@ -120,6 +124,7 @@ class ApplicationSubmittedHandler {
                         income.detail()));
 
         applicationTransitionService.transitionTo(event.applicationId(), ApplicationStatus.UNDERWRITING);
+        verificationTransitionAuditor.recordVerificationCompleted(event.applicationId());
 
         outboxEventPublisher.enqueue(
                 new UnderwritingRequestedEvent(event.applicationId(), event.versionNumber()));
