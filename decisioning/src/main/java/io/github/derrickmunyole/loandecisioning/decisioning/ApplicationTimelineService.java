@@ -19,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
  * ({@code verification.api}), and both of those modules already depend on {@code origination}, so
  * {@code origination} depending back on either would be a cycle. {@code decisioning} is the only
  * module that can legally see all three at once (same reasoning as retry-decision's placement in
- * Epic 4.2, ADR 0010).
+ * Epic 4.2, ADR 0010; see ADR 0012 for this endpoint's own writeup, including the role-dispatched
+ * response shape).
  */
 @Service
 class ApplicationTimelineService {
