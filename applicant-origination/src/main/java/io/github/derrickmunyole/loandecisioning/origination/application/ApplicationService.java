@@ -1,11 +1,9 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
-import io.github.derrickmunyole.loandecisioning.infrastructure.api.AuditQueryService;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.IdempotencyService;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.RequestHash;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationNotFoundException;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -16,23 +14,19 @@ public class ApplicationService {
 
     private static final String CREATE_SCOPE = "application.create";
     private static final String SUBMIT_SCOPE = "application.submit";
-    private static final String AUDIT_TARGET_TYPE = "Application";
     private static final Set<Integer> ALLOWED_TERM_MONTHS = Set.of(12, 24, 36, 48);
 
     private final ApplicationRepository applicationRepository;
     private final ApplicationCommandService applicationCommandService;
     private final IdempotencyService idempotencyService;
-    private final AuditQueryService auditQueryService;
 
     public ApplicationService(
             ApplicationRepository applicationRepository,
             ApplicationCommandService applicationCommandService,
-            IdempotencyService idempotencyService,
-            AuditQueryService auditQueryService) {
+            IdempotencyService idempotencyService) {
         this.applicationRepository = applicationRepository;
         this.applicationCommandService = applicationCommandService;
         this.idempotencyService = idempotencyService;
-        this.auditQueryService = auditQueryService;
     }
 
     public ApplicationResponse createDraft(
@@ -88,19 +82,5 @@ public class ApplicationService {
                         .findById(applicationId)
                         .orElseThrow(() -> new ApplicationNotFoundException(applicationId));
         return ApplicationResponse.from(application);
-    }
-
-    /**
-     * Application-targeted audit events only, for now — decision/workflow events fold in once
-     * those modules exist (Milestones 2+).
-     */
-    @Transactional(readOnly = true)
-    public List<TimelineEntry> getTimeline(UUID applicationId) {
-        if (!applicationRepository.existsById(applicationId)) {
-            throw new ApplicationNotFoundException(applicationId);
-        }
-        return auditQueryService.findByTarget(AUDIT_TARGET_TYPE, applicationId.toString()).stream()
-                .map(TimelineEntry::from)
-                .toList();
     }
 }

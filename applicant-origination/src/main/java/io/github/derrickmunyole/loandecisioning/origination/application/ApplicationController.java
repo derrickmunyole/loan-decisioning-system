@@ -1,7 +1,6 @@
 package io.github.derrickmunyole.loandecisioning.origination.application;
 
 import jakarta.validation.Valid;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -55,11 +54,5 @@ public class ApplicationController {
     @PreAuthorize("@applicationAccessGuard.isOwner(#id, authentication.name)")
     public ApplicationResponse get(@PathVariable UUID id) {
         return applicationService.get(id);
-    }
-
-    @GetMapping("/{id}/timeline")
-    @PreAuthorize("@applicationAccessGuard.isOwner(#id, authentication.name)")
-    public List<TimelineEntry> timeline(@PathVariable UUID id) {
-        return applicationService.getTimeline(id);
     }
 }

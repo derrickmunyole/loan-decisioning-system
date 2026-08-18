@@ -54,6 +54,17 @@ public class SecurityConfig {
                                         // forward.
                                         .requestMatchers("/error")
                                         .permitAll()
+                                        // Ordered before the broader /applications/** rule below
+                                        // — this is the one /applications/** endpoint every human
+                                        // role can reach, not just APPLICANT; ApplicationTimeline
+                                        // Service dispatches the actual response shape by role.
+                                        .requestMatchers("/applications/*/timeline")
+                                        .hasAnyRole(
+                                                "APPLICANT",
+                                                "UNDERWRITER",
+                                                "OPERATIONS_ANALYST",
+                                                "POLICY_ADMIN",
+                                                "AUDITOR")
                                         .requestMatchers("/applications/**")
                                         .hasRole("APPLICANT")
                                         .requestMatchers("/work-queue")
