@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  * ApplicationSubmittedHandler} itself, because {@code @Audited} is AOP-woven via a Spring proxy —
  * calling an annotated method on {@code this} from inside the same class bypasses the proxy
  * entirely and silently never audits. These no-op bodies exist only to carry the annotation; the
- * actor resolves to {@code SYSTEM_SERVICE} via {@code SystemServicePrincipalAspect}'s synthetic
+ * actor resolves to {@code system_service} via {@code SystemServicePrincipalAspect}'s synthetic
  * principal, since every call here originates inside a {@code @RabbitListener}.
  */
 @Service

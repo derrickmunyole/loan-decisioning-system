@@ -3,11 +3,14 @@ package io.github.derrickmunyole.loandecisioning.decisioning;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEvent;
+import io.github.derrickmunyole.loandecisioning.infrastructure.audit.AuditEventRepository;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginRequest;
 import io.github.derrickmunyole.loandecisioning.security.auth.LoginResponse;
 import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskType;
 import io.github.derrickmunyole.loandecisioning.workflow.workqueue.WorkflowTaskRepository;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -61,6 +64,7 @@ class DecisionEngineProviderOutageIntegrationTest {
     @Autowired private TestRestTemplate restTemplate;
     @Autowired private DecisionRepository decisionRepository;
     @Autowired private WorkflowTaskRepository workflowTaskRepository;
+    @Autowired private AuditEventRepository auditEventRepository;
 
     @Test
     void unreachableProviderReferesTheApplicationAndRaisesAnOpsTaskWithoutARecordedDecision() {
@@ -87,6 +91,16 @@ class DecisionEngineProviderOutageIntegrationTest {
                                                                                 == WorkflowTaskType
                                                                                         .CREDIT_SCORE_PROVIDER_UNAVAILABLE))
                                         .isTrue());
+
+        List<AuditEvent> auditEvents =
+                auditEventRepository.findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
+                        "Application", applicationId.toString());
+        assertThat(auditEvents)
+                .filteredOn(e -> e.getAction().equals("CREDIT_SCORE_PROVIDER_OUTAGE_REFERRED"))
+                .hasSize(1)
+                .allSatisfy(e -> assertThat(e.getActor()).isEqualTo("system_service"));
+        assertThat(auditEvents)
+                .noneMatch(e -> e.getAction().equals("AUTOMATED_DECISION_RECORDED"));
     }
 
     /**
