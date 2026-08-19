@@ -16,6 +16,7 @@ public record DecisionView(
         UUID id,
         UUID applicationId,
         UUID underwritingSnapshotId,
+        UUID applicationVersionId,
         UUID policyVersionId,
         UUID scorecardVersionId,
         UUID pricingVersionId,
