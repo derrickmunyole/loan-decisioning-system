@@ -1,8 +1,10 @@
 package io.github.derrickmunyole.loandecisioning.decisioning;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.derrickmunyole.loandecisioning.decisioning.api.DecisionCreatedEvent;
 import io.github.derrickmunyole.loandecisioning.decisioning.api.UnderwritingSnapshotCreatedEvent;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.AmqpDedupeService;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationTransitionService;
 import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import io.github.derrickmunyole.loandecisioning.workflow.api.WorkflowTaskCreationService;
@@ -64,6 +66,7 @@ class DecisionEngineHandler {
     private final ApplicationTransitionService applicationTransitionService;
     private final WorkflowTaskCreationService workflowTaskCreationService;
     private final DecisionTransitionAuditor decisionTransitionAuditor;
+    private final OutboxEventPublisher outboxEventPublisher;
     private final ObjectMapper objectMapper;
 
     DecisionEngineHandler(
@@ -77,6 +80,7 @@ class DecisionEngineHandler {
             ApplicationTransitionService applicationTransitionService,
             WorkflowTaskCreationService workflowTaskCreationService,
             DecisionTransitionAuditor decisionTransitionAuditor,
+            OutboxEventPublisher outboxEventPublisher,
             ObjectMapper objectMapper) {
         this.amqpDedupeService = amqpDedupeService;
         this.underwritingSnapshotRepository = underwritingSnapshotRepository;
@@ -88,6 +92,7 @@ class DecisionEngineHandler {
         this.applicationTransitionService = applicationTransitionService;
         this.workflowTaskCreationService = workflowTaskCreationService;
         this.decisionTransitionAuditor = decisionTransitionAuditor;
+        this.outboxEventPublisher = outboxEventPublisher;
         this.objectMapper = objectMapper;
     }
 
@@ -201,23 +206,26 @@ class DecisionEngineHandler {
             String creditScoreModelVersion,
             ApplicationStatus outcome,
             List<String> reasons) {
+        Decision decision;
         try {
             String reasonCodesJson = objectMapper.writeValueAsString(reasons);
-            decisionRepository.save(
-                    new Decision(
-                            applicationId,
-                            underwritingSnapshotId,
-                            policyVersionId,
-                            scorecardVersionId,
-                            pricingVersionId,
-                            creditScoreModelVersion,
-                            outcome,
-                            reasonCodesJson,
-                            ACTOR,
-                            null));
+            decision =
+                    decisionRepository.save(
+                            new Decision(
+                                    applicationId,
+                                    underwritingSnapshotId,
+                                    policyVersionId,
+                                    scorecardVersionId,
+                                    pricingVersionId,
+                                    creditScoreModelVersion,
+                                    outcome,
+                                    reasonCodesJson,
+                                    ACTOR,
+                                    null));
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialize decision reason codes: " + reasons, e);
         }
+        outboxEventPublisher.enqueue(new DecisionCreatedEvent(decision.getId(), applicationId, outcome));
         applicationTransitionService.transitionTo(applicationId, outcome);
         decisionTransitionAuditor.recordDecisionOutcome(applicationId);
         if (outcome == ApplicationStatus.REFERRED) {
