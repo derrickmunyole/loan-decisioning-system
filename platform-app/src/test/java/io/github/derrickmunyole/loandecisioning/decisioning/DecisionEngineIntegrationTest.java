@@ -11,6 +11,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,11 +149,15 @@ class DecisionEngineIntegrationTest {
         assertThat(decision.getReasonCodesJson()).contains("failed check");
     }
 
+    // APPROVED/CONDITIONAL_APPROVAL are no longer terminal since Epic 5.1 (offers).
+    private static final Set<String> OFFERABLE_OUTCOMES = Set.of("APPROVED", "CONDITIONAL_APPROVAL");
+
     private void assertOutcome(UUID applicationId, String expectedOutcome) {
         String token = login("applicant", SEED_PASSWORD);
+        String expectedStatus = OFFERABLE_OUTCOMES.contains(expectedOutcome) ? "OFFERED" : expectedOutcome;
         await().atMost(Duration.ofSeconds(20))
                 .untilAsserted(
-                        () -> assertThat(getStatus(token, applicationId)).isEqualTo(expectedOutcome));
+                        () -> assertThat(getStatus(token, applicationId)).isEqualTo(expectedStatus));
 
         List<Decision> decisions = decisionRepository.findByApplicationId(applicationId);
         assertThat(decisions).hasSize(1);
