@@ -108,7 +108,8 @@ class CaseDecisionIntegrationTest {
         assertThat(response.get("overridesDecisionId")).isEqualTo(automated.getId().toString());
         assertThat(response.get("actor")).isEqualTo("underwriter");
 
-        assertThat(getStatus(login("applicant", SEED_PASSWORD), applicationId)).isEqualTo("APPROVED");
+        // APPROVED is no longer terminal since Epic 5.1 (offers).
+        awaitStatus(applicationId, "OFFERED");
 
         List<Decision> decisions = decisionRepository.findByApplicationId(applicationId);
         assertThat(decisions).hasSize(2);
