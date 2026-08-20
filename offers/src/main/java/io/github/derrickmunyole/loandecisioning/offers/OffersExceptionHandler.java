@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackages = "io.github.derrickmunyole.loandecisioning.offers")
 class OffersExceptionHandler {
 
-    @ExceptionHandler(OfferNotFoundException.class)
+    @ExceptionHandler({OfferNotFoundException.class, NoOfferForApplicationException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     String handleNotFound(RuntimeException e) {
         return e.getMessage();
