@@ -39,6 +39,10 @@ public class RabbitTopologyConfig {
             RabbitQueueNames.UNDERWRITING_SNAPSHOT_CREATED_DLQ;
     public static final String UNDERWRITING_SNAPSHOT_CREATED_ROUTING_KEY = "underwriting.snapshot.created";
 
+    public static final String DECISION_CREATED_QUEUE = RabbitQueueNames.DECISION_CREATED_QUEUE;
+    public static final String DECISION_CREATED_DLQ = RabbitQueueNames.DECISION_CREATED_DLQ;
+    public static final String DECISION_CREATED_ROUTING_KEY = "decision.created";
+
     @Bean
     TopicExchange eventsExchange() {
         return new TopicExchange(EVENTS_EXCHANGE, true, false);
@@ -155,5 +159,30 @@ public class RabbitTopologyConfig {
         return BindingBuilder.bind(underwritingSnapshotCreatedDlq())
                 .to(deadLetterExchange())
                 .with(UNDERWRITING_SNAPSHOT_CREATED_QUEUE);
+    }
+
+    @Bean
+    Queue decisionCreatedQueue() {
+        return QueueBuilder.durable(DECISION_CREATED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DECISION_CREATED_QUEUE)
+                .build();
+    }
+
+    @Bean
+    Queue decisionCreatedDlq() {
+        return QueueBuilder.durable(DECISION_CREATED_DLQ).build();
+    }
+
+    @Bean
+    Binding decisionCreatedBinding() {
+        return BindingBuilder.bind(decisionCreatedQueue()).to(eventsExchange()).with(DECISION_CREATED_ROUTING_KEY);
+    }
+
+    @Bean
+    Binding decisionCreatedDlqBinding() {
+        return BindingBuilder.bind(decisionCreatedDlq())
+                .to(deadLetterExchange())
+                .with(DECISION_CREATED_QUEUE);
     }
 }

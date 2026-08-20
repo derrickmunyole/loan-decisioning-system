@@ -132,7 +132,14 @@ class PolicyAdminIntegrationTest {
                         "/pricing",
                         HttpMethod.POST,
                         new HttpEntity<>(
-                                Map.of("aprTermRules", Map.of("baseAprPercent", 18.5, "termMonths", 24)),
+                                Map.of(
+                                        "aprTermRules",
+                                        Map.of(
+                                                "tiers",
+                                                Map.of(
+                                                        "APPROVED", Map.of("aprBasisPoints", 1499, "termMonths", 36),
+                                                        "CONDITIONAL_APPROVAL",
+                                                                Map.of("aprBasisPoints", 1999, "termMonths", 24)))),
                                 authHeaders(token)),
                         new ParameterizedTypeReference<>() {});
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);

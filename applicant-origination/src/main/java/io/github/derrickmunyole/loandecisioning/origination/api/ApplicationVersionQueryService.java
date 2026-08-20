@@ -28,6 +28,16 @@ public class ApplicationVersionQueryService {
                 .map(ApplicationVersionQueryService::toView);
     }
 
+    /**
+     * Added for Epic 5.1's {@code offers} listener, which only has the {@code applicationVersionId}
+     * a {@code Decision} was computed against (via {@code decisioning.api.DecisionView}), not the
+     * {@code (applicationId, versionNumber)} pair {@link #findByApplicationIdAndVersionNumber}
+     * expects.
+     */
+    public Optional<ApplicationVersionView> findById(UUID applicationVersionId) {
+        return applicationVersionRepository.findById(applicationVersionId).map(ApplicationVersionQueryService::toView);
+    }
+
     private static ApplicationVersionView toView(ApplicationVersion version) {
         return new ApplicationVersionView(
                 version.getId(),

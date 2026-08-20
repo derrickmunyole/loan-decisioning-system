@@ -1,7 +1,9 @@
 package io.github.derrickmunyole.loandecisioning.decisioning;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.derrickmunyole.loandecisioning.decisioning.api.DecisionCreatedEvent;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.Audited;
+import io.github.derrickmunyole.loandecisioning.infrastructure.api.OutboxEventPublisher;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationTransitionService;
 import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
 import io.github.derrickmunyole.loandecisioning.workflow.api.IllegalApplicationTransitionException;
@@ -25,16 +27,19 @@ class CaseDecisionCommandService {
     private final DecisionRepository decisionRepository;
     private final ApplicationTransitionService applicationTransitionService;
     private final WorkflowTaskResolutionService workflowTaskResolutionService;
+    private final OutboxEventPublisher outboxEventPublisher;
     private final ObjectMapper objectMapper;
 
     CaseDecisionCommandService(
             DecisionRepository decisionRepository,
             ApplicationTransitionService applicationTransitionService,
             WorkflowTaskResolutionService workflowTaskResolutionService,
+            OutboxEventPublisher outboxEventPublisher,
             ObjectMapper objectMapper) {
         this.decisionRepository = decisionRepository;
         this.applicationTransitionService = applicationTransitionService;
         this.workflowTaskResolutionService = workflowTaskResolutionService;
+        this.outboxEventPublisher = outboxEventPublisher;
         this.objectMapper = objectMapper;
     }
 
@@ -73,6 +78,8 @@ class CaseDecisionCommandService {
                                 writeReasonCodesJson(request.reason()),
                                 actor,
                                 automated.getId()));
+        outboxEventPublisher.enqueue(
+                new DecisionCreatedEvent(override.getId(), applicationId, request.outcome()));
         applicationTransitionService.transitionTo(applicationId, request.outcome());
         resolveOpenUnderwriteCaseTask(applicationId, actor, request.outcome());
         return CaseDecisionResponse.fromOverride(override, request.reason());

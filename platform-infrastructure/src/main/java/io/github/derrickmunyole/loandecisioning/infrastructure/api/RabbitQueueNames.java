@@ -16,6 +16,8 @@ public final class RabbitQueueNames {
             "decisioning.underwriting-snapshot-created.queue";
     public static final String UNDERWRITING_SNAPSHOT_CREATED_DLQ =
             "decisioning.underwriting-snapshot-created.dlq";
+    public static final String DECISION_CREATED_QUEUE = "offers.decision-created.queue";
+    public static final String DECISION_CREATED_DLQ = "offers.decision-created.dlq";
 
     private RabbitQueueNames() {}
 }

@@ -20,6 +20,7 @@
     <module>workflow</module>
     <module>verification</module>
     <module>decisioning</module>
+    <module>offers</module>
     <module>platform-app</module>
   </modules>
 
@@ -80,6 +81,12 @@
       <dependency>
         <groupId>io.github.derrickmunyole</groupId>
         <artifactId>decisioning</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.github.derrickmunyole</groupId>
+        <artifactId>offers</artifactId>
         <version>${project.version}</version>
       </dependency>
 

@@ -205,7 +205,13 @@ class ApplicationTimelineIntegrationTest {
         createAndPublish(
                 token,
                 "/pricing",
-                Map.of("aprTermRules", Map.of("baseAprPercent", 18.5, "termMonths", 24)));
+                Map.of(
+                        "aprTermRules",
+                        Map.of(
+                                "tiers",
+                                Map.of(
+                                        "APPROVED", Map.of("aprBasisPoints", 1499, "termMonths", 36),
+                                        "CONDITIONAL_APPROVAL", Map.of("aprBasisPoints", 1999, "termMonths", 24)))));
     }
 
     private void createAndPublish(String token, String path, Map<String, Object> body) {

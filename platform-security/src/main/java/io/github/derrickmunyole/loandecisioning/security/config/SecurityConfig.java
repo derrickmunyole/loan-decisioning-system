@@ -67,6 +67,8 @@ public class SecurityConfig {
                                                 "AUDITOR")
                                         .requestMatchers("/applications/**")
                                         .hasRole("APPLICANT")
+                                        .requestMatchers("/offers/**")
+                                        .hasRole("APPLICANT")
                                         .requestMatchers("/work-queue")
                                         .hasAnyRole("UNDERWRITER", "OPERATIONS_ANALYST")
                                         // Ordered before the broader /cases/** rule below —
