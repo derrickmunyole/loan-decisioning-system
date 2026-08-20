@@ -109,6 +109,37 @@ class OfferIntegrationTest {
         assertThat(offer.get("termMonths")).isEqualTo(36);
     }
 
+    /**
+     * decision.created is published from two places (Epic 5.1's whole point is not needing offers
+     * to distinguish which one fired it) — the automated engine, covered above, and the
+     * underwriter-override path via {@code POST /cases/{id}/decision}, covered here.
+     */
+    @Test
+    void underwriterOverrideToApprovedAlsoCreatesAnOffer() {
+        publishStandardPolicyScorecardPricing();
+        UUID applicationId =
+                submitApplication(
+                        "100000", 12, "50000", "EMPLOYED", "SYNTHETIC_IDENTITY_MISMATCH");
+        String applicantToken = login("applicant", SEED_PASSWORD);
+        await().atMost(Duration.ofSeconds(20))
+                .untilAsserted(() -> assertThat(getStatus(applicantToken, applicationId)).isEqualTo("REFERRED"));
+
+        String underwriterToken = login("underwriter", SEED_PASSWORD);
+        var headers = authHeaders(underwriterToken);
+        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        ResponseEntity<Map<String, Object>> decision =
+                restTemplate.exchange(
+                        "/cases/" + applicationId + "/decision",
+                        HttpMethod.POST,
+                        new HttpEntity<>(Map.of("outcome", "APPROVED", "reason", "Manually verified identity"), headers),
+                        new ParameterizedTypeReference<>() {});
+        assertThat(decision.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        await().atMost(Duration.ofSeconds(20))
+                .untilAsserted(() -> assertThat(getStatus(applicantToken, applicationId)).isEqualTo("OFFERED"));
+        assertThat(getOffer(applicantToken, applicationId).get("status")).isEqualTo("OFFERED");
+    }
+
     @Test
     void duplicateAcceptCallsProduceExactlyOneAcceptance() {
         publishStandardPolicyScorecardPricing();
@@ -128,7 +159,7 @@ class OfferIntegrationTest {
 
         List<AuditEvent> acceptEvents =
                 auditEventRepository.findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
-                        "Offer", offerId.toString());
+                        "Application", applicationId.toString());
         assertThat(acceptEvents).filteredOn(e -> e.getAction().equals("OFFER_ACCEPTED")).hasSize(1);
     }
 
@@ -169,7 +200,7 @@ class OfferIntegrationTest {
 
         List<AuditEvent> expiryEvents =
                 auditEventRepository.findByTargetTypeAndTargetIdOrderByOccurredAtAsc(
-                        "Offer", offerId.toString());
+                        "Application", applicationId.toString());
         assertThat(expiryEvents)
                 .filteredOn(e -> e.getAction().equals("OFFER_EXPIRED"))
                 .hasSize(1)

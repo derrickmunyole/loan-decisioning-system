@@ -34,12 +34,13 @@ public class OfferService {
             throw new AccessDeniedException("Not the owning applicant");
         }
 
+        UUID applicationId = offer.getApplicationId();
         String requestHash = RequestHash.of(offerId.toString());
         return idempotencyService.execute(
                 ACCEPT_SCOPE + ":" + offerId,
                 idempotencyKey,
                 requestHash,
                 OfferResponse.class,
-                () -> offerAcceptCommandService.accept(offerId));
+                () -> offerAcceptCommandService.accept(offerId, applicationId));
     }
 }

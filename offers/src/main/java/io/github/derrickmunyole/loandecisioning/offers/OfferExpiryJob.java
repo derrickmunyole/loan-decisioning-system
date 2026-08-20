@@ -43,7 +43,7 @@ class OfferExpiryJob {
         for (Offer offer : overdue) {
             if (offer.expireIfOverdue(now)) {
                 applicationTransitionService.transitionTo(offer.getApplicationId(), ApplicationStatus.OFFER_EXPIRED);
-                offerExpiryAuditor.recordExpiry(offer.getId());
+                offerExpiryAuditor.recordExpiry(offer.getApplicationId());
             }
         }
     }

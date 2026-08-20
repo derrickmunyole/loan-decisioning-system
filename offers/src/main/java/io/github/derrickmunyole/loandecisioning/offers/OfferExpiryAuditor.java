@@ -10,10 +10,14 @@ import org.springframework.stereotype.Service;
  * DecisionTransitionAuditor} (Epic 4.3), this isn't a retrofit: automated Application transitions
  * going unaudited was a real gap found only after the fact there, so the expiry sweep is designed
  * with its own auditing collaborator from the start rather than repeating that gap.
+ *
+ * <p>{@code targetType} is {@code "Application"}, matching {@link OfferCreatedAuditor} and {@code
+ * OFFER_ACCEPTED} — not {@code "Offer"} — so the Epic 4.3 timeline endpoint's {@code targetType =
+ * "Application"} audit query surfaces every step of an offer's lifecycle, not just its creation.
  */
 @Service
 class OfferExpiryAuditor {
 
-    @Audited(action = "OFFER_EXPIRED", targetType = "Offer", targetId = "#offerId")
-    void recordExpiry(UUID offerId) {}
+    @Audited(action = "OFFER_EXPIRED", targetType = "Application", targetId = "#applicationId")
+    void recordExpiry(UUID applicationId) {}
 }
