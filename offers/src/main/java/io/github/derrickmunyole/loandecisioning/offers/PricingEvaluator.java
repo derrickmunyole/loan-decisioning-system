@@ -23,7 +23,7 @@ final class PricingEvaluator {
     record Terms(int aprBasisPoints, int termMonths) {}
 
     static Terms evaluate(String outcome, Map<String, Terms> tiers) {
-        Terms terms = tiers.get(outcome);
+        Terms terms = tiers == null ? null : tiers.get(outcome);
         if (terms == null) {
             throw new NoSuchElementException("PricingVersion has no tier configured for outcome " + outcome);
         }

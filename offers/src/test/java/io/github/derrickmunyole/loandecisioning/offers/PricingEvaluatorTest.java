@@ -36,4 +36,11 @@ class PricingEvaluatorTest {
                 .isInstanceOf(NoSuchElementException.class)
                 .hasMessageContaining("DECLINED");
     }
+
+    @Test
+    void nullTiersMapThrowsTheSameCleanExceptionRatherThanNpeing() {
+        assertThatThrownBy(() -> PricingEvaluator.evaluate("APPROVED", null))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessageContaining("APPROVED");
+    }
 }
