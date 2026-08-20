@@ -7,6 +7,7 @@ import io.github.derrickmunyole.loandecisioning.decisioning.api.DecisionView;
 import io.github.derrickmunyole.loandecisioning.decisioning.api.PricingVersionQueryService;
 import io.github.derrickmunyole.loandecisioning.decisioning.api.PricingVersionView;
 import io.github.derrickmunyole.loandecisioning.infrastructure.api.AmqpDedupeService;
+import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationTransitionService;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationVersionQueryService;
 import io.github.derrickmunyole.loandecisioning.origination.api.ApplicationVersionView;
 import io.github.derrickmunyole.loandecisioning.workflow.api.ApplicationStatus;
@@ -50,6 +51,8 @@ class DecisionCreatedHandler {
     private final PricingVersionQueryService pricingVersionQueryService;
     private final ApplicationVersionQueryService applicationVersionQueryService;
     private final OfferRepository offerRepository;
+    private final ApplicationTransitionService applicationTransitionService;
+    private final OfferCreatedAuditor offerCreatedAuditor;
     private final Clock clock;
     private final Duration offerExpiryPeriod;
     private final ObjectMapper objectMapper;
@@ -60,6 +63,8 @@ class DecisionCreatedHandler {
             PricingVersionQueryService pricingVersionQueryService,
             ApplicationVersionQueryService applicationVersionQueryService,
             OfferRepository offerRepository,
+            ApplicationTransitionService applicationTransitionService,
+            OfferCreatedAuditor offerCreatedAuditor,
             Clock clock,
             @Value("${app.offers.expiry-period:P14D}") Duration offerExpiryPeriod,
             ObjectMapper objectMapper) {
@@ -68,6 +73,8 @@ class DecisionCreatedHandler {
         this.pricingVersionQueryService = pricingVersionQueryService;
         this.applicationVersionQueryService = applicationVersionQueryService;
         this.offerRepository = offerRepository;
+        this.applicationTransitionService = applicationTransitionService;
+        this.offerCreatedAuditor = offerCreatedAuditor;
         this.clock = clock;
         this.offerExpiryPeriod = offerExpiryPeriod;
         this.objectMapper = objectMapper;
@@ -124,6 +131,8 @@ class DecisionCreatedHandler {
                         terms.termMonths(),
                         monthlyPayment,
                         expiresAt));
+        applicationTransitionService.transitionTo(event.applicationId(), ApplicationStatus.OFFERED);
+        offerCreatedAuditor.recordOffered(event.applicationId());
     }
 
     private PricingRulesConfig parsePricingRules(String aprTermRulesJson) {
